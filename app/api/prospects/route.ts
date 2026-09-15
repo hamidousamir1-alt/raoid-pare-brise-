@@ -1,0 +1,4 @@
+import {NextResponse} from 'next/server';
+import {databaseConfigured,db} from '../../../lib/db';
+export const runtime='nodejs';export const dynamic='force-dynamic';
+export async function GET(){if(!databaseConfigured())return NextResponse.json({mode:'local-demo',items:[]},{headers:{'Cache-Control':'no-store'}});try{const rows=await db()`select id,name,sector,zone,address,fleet,phone,status,score,notes,next_action as "next",access,insurance,potential_revenue as "potentialRevenue",signed_revenue as "signedRevenue",generated_revenue as "generatedRevenue",updated_at as "updatedAt" from prospects where deleted_at is null order by updated_at desc`;return NextResponse.json({mode:'postgresql',items:rows},{headers:{'Cache-Control':'no-store'}})}catch{return NextResponse.json({error:'database_unavailable'},{status:503,headers:{'Cache-Control':'no-store'}})}}
