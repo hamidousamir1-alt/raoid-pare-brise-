@@ -1,0 +1,31 @@
+/* Global finishing pass: spacing/readability only. Keeps the approved visual identity. */
+:root{--premium-gap:14px}
+button,a{line-height:1.25}button{white-space:nowrap}p,small,label,span{overflow-wrap:break-word}
+/* Never allow browser-native fluorescent mark rendering. */
+mark{background:#f4f6f8!important;color:#263345!important;padding:5px 8px;border-radius:7px}
+/* Clear separation between headings, copy, figures and actions. */
+.panelhead,.topline,.docsHead,.dealTop,.dealValue,.dealcard footer,.strategy,.heroActions,.navlinks,.pipelineLegend,.workspacebar,.modalactions{gap:12px}
+.panelhead>*,.topline>*,.docsHead>*,.dealTop>*,.dealValue>*,.dealcard footer>*,.strategy>*{min-width:0}
+.panel h2,.companySheet h2,.dealcard h3,.partnerIdentity h3{line-height:1.3}
+.panel p,.muted,.companySheet p,.dealcard p{line-height:1.65}
+/* Numbers are visually independent from their explanatory labels. */
+.kpis article,.pipelineKpis div,.sheetKpis div,.partnerStats article,.partnerPulse,.strategyStats>div{min-width:0}
+.kpis label,.pipelineKpis small,.sheetKpis small,.partnerStats small,.partnerRevenue small,.strategyStats small{display:block;margin-bottom:7px;line-height:1.35}
+.kpis strong,.pipelineKpis strong,.sheetKpis strong,.partnerStats strong,.partnerRevenue b,.strategyStats strong{display:block;font-variant-numeric:tabular-nums;line-height:1.05;margin-top:5px}
+.kpis em{display:block;margin-top:7px;line-height:1.4}
+/* Cards and rows breathe without changing their structure. */
+.prospectcard,.dealcard,.decisioncards article,.partnerStats article,.partnerRow,.stop,.companySheet section{line-height:1.45}
+.prospectmain{column-gap:18px;row-gap:11px}.prospectmeta,.dealSignals{gap:7px;flex-wrap:wrap}.prospectmeta span,.dealSignals span{line-height:1.35}
+.dealValue{align-items:center;gap:14px}.dealValue>*{min-width:0}.dealcard footer{align-items:center;margin-top:12px}
+.partnerIdentity p,.partnerStatus small{line-height:1.45}.partnerRevenue{min-width:90px}.partnerRevenue b{margin-top:6px}
+.stop{align-items:start}.stop>div{min-width:0}.navlinks{flex-wrap:wrap;margin-top:8px}
+.sector{align-items:center}.sector>*{min-width:0}
+/* Forms: labels, fields and actions must never look stuck together. */
+.formgrid{gap:17px 16px}.formgrid label{line-height:1.4}.formgrid input,.formgrid select,.formgrid textarea{margin-top:8px}.formgrid small{display:block;margin-top:6px;line-height:1.45;color:#758194}.modalhead{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:20px}.modalactions{display:flex;justify-content:flex-end;align-items:center;margin-top:22px;flex-wrap:wrap}.modalactions .danger{margin-right:auto}
+.workspacebar{align-items:center}.workspacebar input{min-width:180px}.workspacebar button{flex:0 0 auto;margin:0}
+/* Tables: keep values and sentences distinguishable. */
+.tr{align-items:center;line-height:1.45}.tr>*{min-width:0;padding-right:4px}.table strong,.tr strong{font-variant-numeric:tabular-nums}
+/* Remove accidental yellow/highlighter colors from common semantic elements. */
+mark,mark *,ins{background-color:#f4f6f8!important;text-decoration:none;color:#263345!important}
+@media(max-width:900px){.workspacebar,.topline,.docsHead,.strategy{flex-wrap:wrap}.kpis,.pipelineKpis,.partnerStats,.decisioncards{grid-template-columns:repeat(2,minmax(0,1fr))}.formgrid{grid-template-columns:1fr}.formgrid .full{grid-column:1}.modal{width:min(94vw,760px)}.prospectmain{grid-template-columns:1fr}.prospectmain small{grid-column:1}.partnerGrid,.perfgrid,.terrainGrid,.grid{grid-template-columns:1fr}}
+@media(max-width:560px){.kpis,.pipelineKpis,.partnerStats,.decisioncards{grid-template-columns:1fr}.workspace,.subpage{padding-left:18px;padding-right:18px}.workspacebar input{flex-basis:100%;width:100%}.modalactions button{flex:1}.modalactions .danger{flex-basis:100%;margin-right:0}.partnerRow{grid-template-columns:42px 1fr auto}.partnerStatus,.partnerRevenue{grid-column:2/-1}.sector{grid-template-columns:1fr}.pipelineLegend{flex-wrap:wrap}}
