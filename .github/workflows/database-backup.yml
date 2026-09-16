@@ -1,0 +1,64 @@
+name: Encrypted PostgreSQL backup
+
+on:
+  schedule:
+    - cron: '17 3 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+
+      - name: Validate backup secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          test -n "$DATABASE_URL" || (echo "DATABASE_URL secret is missing" && exit 1)
+          test ${#BACKUP_ENCRYPTION_KEY} -ge 32 || (echo "BACKUP_ENCRYPTION_KEY must be at least 32 characters" && exit 1)
+
+      - name: Create PostgreSQL dump
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          pg_dump "$DATABASE_URL" --format=custom --no-owner --no-acl --file=rapid-pb.dump
+          pg_restore --list rapid-pb.dump >/dev/null
+
+      - name: Encrypt backup
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          set -euo pipefail
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 \
+            -in rapid-pb.dump \
+            -out rapid-pb-${GITHUB_RUN_ID}.dump.enc \
+            -pass env:BACKUP_ENCRYPTION_KEY
+          rm -f rapid-pb.dump
+          sha256sum rapid-pb-${GITHUB_RUN_ID}.dump.enc > rapid-pb-${GITHUB_RUN_ID}.sha256
+
+      - name: Publish encrypted backup release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="db-backup-$(date -u +%Y-%m-%d)-${GITHUB_RUN_ID}"
+          gh release create "$TAG" \
+            rapid-pb-${GITHUB_RUN_ID}.dump.enc \
+            rapid-pb-${GITHUB_RUN_ID}.sha256 \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "CRM database backup $(date -u +%Y-%m-%d)" \
+            --notes "Encrypted automated PostgreSQL backup. Restore requires BACKUP_ENCRYPTION_KEY."
