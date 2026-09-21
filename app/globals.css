@@ -1,6 +1,26 @@
 * {
   box-sizing: border-box;
 }
+@media (max-width: 700px) {
+  .companyRecord .formgrid,
+  .recordInsights,
+  .contactEditor {
+    grid-template-columns: 1fr !important;
+  }
+  .companyRecord {
+    padding-bottom: calc(95px + env(safe-area-inset-bottom));
+  }
+  .recordInsights .timelineSection,
+  .companyRecord .formgrid > * {
+    grid-column: 1 !important;
+  }
+  .contactEditor {
+    padding: 14px 0;
+  }
+  .contactRemove {
+    justify-self: start;
+  }
+}
 html,
 body {
   margin: 0;
@@ -489,6 +509,136 @@ h2 {
 }
 .formgrid .full {
   grid-column: 1/-1;
+}
+.companyRecord {
+  width: min(980px, 100%);
+}
+.formsection {
+  margin: 14px 0 0;
+  padding: 13px 0 3px;
+  border-top: 1px solid #edf0f4;
+  color: #182438;
+  font-size: 13px;
+}
+.recordQuality {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 4px 10px;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 9px;
+  color: #7c8797;
+}
+.recordQuality b {
+  color: #162235;
+}
+.recordQuality i {
+  grid-column: 1/-1;
+  width: 170px;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #edf1f4;
+}
+.recordQuality em {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #ef3340;
+}
+.recordLoading {
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: #f5f7f9;
+  color: #657186;
+  font-size: 11px;
+}
+.contactManager,
+.recordInsights > section {
+  padding: 15px;
+  border: 1px solid #e7ebef;
+  border-radius: 13px;
+  background: #fbfcfd;
+}
+.sectionTitle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+.sectionTitle small {
+  display: block;
+  margin-top: 3px;
+  color: #8490a1;
+  font-size: 9px;
+}
+.sectionTitle button,
+.sectionTitle a {
+  font-size: 10px;
+}
+.contactEditor {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1.2fr 0.9fr;
+  gap: 8px;
+  padding: 11px 0;
+  border-top: 1px solid #edf0f4;
+}
+.contactEditor input,
+.contactEditor select {
+  margin: 0;
+  min-width: 0;
+  font-size: 10px;
+}
+.miniCheck {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+}
+.miniCheck input {
+  width: auto;
+  margin: 0;
+}
+.contactRemove {
+  justify-self: end;
+  color: #bd2f3a;
+  font-size: 9px;
+}
+.recordInsights {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.recordInsights .timelineSection {
+  grid-column: 1/-1;
+}
+.recordInsights p {
+  margin: 7px 0;
+  color: #667386;
+  font-size: 10px;
+}
+.missingChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.missingChips span {
+  padding: 5px 7px;
+  border-radius: 7px;
+  background: #fff1f2;
+  color: #ad3039;
+  font-size: 8px;
+}
+.timelineSection p {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid #edf0f4;
+}
+.timelineSection time {
+  color: #8b96a5;
 }
 .strategy,
 .pipelineHero {

@@ -10,12 +10,32 @@ ALTER TABLE prospects ADD COLUMN IF NOT EXISTS last_field_visit_at timestamptz;
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS field_visit_count integer NOT NULL DEFAULT 0;
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS next_action_at timestamptz;
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS last_contact_at timestamptz;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS website text;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS siret text;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS postal_code text;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS city text;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS company_size text NOT NULL DEFAULT 'À qualifier';
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS fleet_count integer CHECK(fleet_count IS NULL OR fleet_count >= 0);
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS fleet_confidence text NOT NULL DEFAULT 'À vérifier';
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS fleet_types text;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS usage_intensity text NOT NULL DEFAULT 'À vérifier';
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS current_glass_partner text NOT NULL DEFAULT 'Inconnu';
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS glass_partner_details text;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS lead_source text NOT NULL DEFAULT 'Prospection terrain';
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS best_contact_time text;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS decision_process text;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS objections text;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS data_quality_score integer NOT NULL DEFAULT 0 CHECK(data_quality_score BETWEEN 0 AND 100);
 CREATE INDEX IF NOT EXISTS prospects_status_idx ON prospects(status) WHERE deleted_at IS NULL;CREATE INDEX IF NOT EXISTS prospects_zone_idx ON prospects(zone) WHERE deleted_at IS NULL;CREATE INDEX IF NOT EXISTS prospects_updated_idx ON prospects(updated_at DESC) WHERE deleted_at IS NULL;
 CREATE TABLE IF NOT EXISTS prospect_events(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,event_type text NOT NULL,payload jsonb NOT NULL DEFAULT '{}'::jsonb,created_at timestamptz NOT NULL DEFAULT now());CREATE INDEX IF NOT EXISTS prospect_events_prospect_idx ON prospect_events(prospect_id,created_at DESC);
+CREATE TABLE IF NOT EXISTS prospect_contacts(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,name text NOT NULL,role text,email text,phone text,is_decision_maker boolean NOT NULL DEFAULT false,is_primary boolean NOT NULL DEFAULT false,preferred_channel text NOT NULL DEFAULT 'Téléphone',notes text,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),deleted_at timestamptz);
+CREATE INDEX IF NOT EXISTS prospect_contacts_prospect_idx ON prospect_contacts(prospect_id,is_primary DESC) WHERE deleted_at IS NULL;
 CREATE TABLE IF NOT EXISTS individual_customers(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),name text NOT NULL,phone text,vehicle text,registration text NOT NULL,source text NOT NULL DEFAULT 'Apport personnel',status text NOT NULL DEFAULT 'À contacter',generated_revenue numeric(12,2) NOT NULL DEFAULT 0,notes text,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),deleted_at timestamptz);
 CREATE INDEX IF NOT EXISTS individual_customers_registration_idx ON individual_customers(upper(registration)) WHERE deleted_at IS NULL;CREATE INDEX IF NOT EXISTS individual_customers_status_idx ON individual_customers(status) WHERE deleted_at IS NULL;CREATE INDEX IF NOT EXISTS individual_customers_updated_idx ON individual_customers(updated_at DESC) WHERE deleted_at IS NULL;
 CREATE TABLE IF NOT EXISTS individual_customer_events(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),customer_id uuid NOT NULL REFERENCES individual_customers(id) ON DELETE RESTRICT,event_type text NOT NULL,payload jsonb NOT NULL DEFAULT '{}'::jsonb,created_at timestamptz NOT NULL DEFAULT now());CREATE INDEX IF NOT EXISTS individual_customer_events_customer_idx ON individual_customer_events(customer_id,created_at DESC);
 CREATE TABLE IF NOT EXISTS documents(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),name text NOT NULL,file_name text NOT NULL,mime_type text NOT NULL,size_bytes integer NOT NULL CHECK(size_bytes>0 AND size_bytes<=10485760),category text NOT NULL DEFAULT 'Autre',content bytea NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),deleted_at timestamptz);CREATE INDEX IF NOT EXISTS documents_created_idx ON documents(created_at DESC) WHERE deleted_at IS NULL;CREATE INDEX IF NOT EXISTS documents_category_idx ON documents(category) WHERE deleted_at IS NULL;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS prospect_id uuid REFERENCES prospects(id) ON DELETE RESTRICT;
+CREATE INDEX IF NOT EXISTS documents_prospect_idx ON documents(prospect_id,created_at DESC) WHERE deleted_at IS NULL;
 -- Commercial records and documents are archived with deleted_at; application code must not hard-delete history.
 
 -- Mailing commercial: modèles, séquences, inscriptions et journal immuable des messages.
