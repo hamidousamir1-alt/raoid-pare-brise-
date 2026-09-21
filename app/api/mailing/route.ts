@@ -8,9 +8,61 @@ import {
   signatureText,
   microsoftConfigured,
 } from "../../../lib/mailing";
+import {
+  replyCategories,
+  type ReplyCategory,
+} from "../../../lib/reply-intelligence";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "no-store" };
+const replyActions: Record<
+  ReplyCategory,
+  { title: string; next: string; status?: string; doNotContact?: boolean }
+> = {
+  interested: {
+    title: "Appeler pour convenir d’un rendez-vous",
+    next: "Appeler pour convenir d’un rendez-vous",
+    status: "Relance",
+  },
+  callback: {
+    title: "Programmer le rappel demandé",
+    next: "Rappeler à la date convenue",
+    status: "Relance",
+  },
+  information: {
+    title: "Préparer les informations demandées",
+    next: "Valider et envoyer une réponse personnalisée",
+    status: "Relance",
+  },
+  wrong_contact: {
+    title: "Identifier le bon interlocuteur",
+    next: "Obtenir les coordonnées du décideur",
+  },
+  objection: {
+    title: "Traiter l’objection et décider de la suite",
+    next: "Analyser l’objection avant de répondre",
+    status: "Relance",
+  },
+  not_interested: {
+    title: "Refus validé",
+    next: "Aucune action commerciale",
+    status: "Perdu",
+  },
+  out_of_office: {
+    title: "Relancer après l’absence",
+    next: "Relancer après le retour de l’interlocuteur",
+    status: "Relance",
+  },
+  unsubscribe: {
+    title: "Désinscription enregistrée",
+    next: "Aucun contact — désinscription reçue",
+    doNotContact: true,
+  },
+  ambiguous: {
+    title: "Lire et qualifier la réponse",
+    next: "Examiner la réponse reçue",
+  },
+};
 async function guard() {
   if (!databaseConfigured())
     return NextResponse.json(
@@ -34,13 +86,16 @@ export async function GET() {
   const denied = await guard();
   if (denied) return denied;
   try {
-    const [stats, prospects, templates, sequences, recent] = await Promise.all([
-      db()`select count(*) filter(where status='scheduled')::int as scheduled,count(*) filter(where status='sent')::int as sent,count(*) filter(where status='replied')::int as replied,count(*) filter(where status='failed')::int as failed from email_messages`,
-      db()`select id,name,email,contact_name as "contactName",contact_role as "contactRole",email_status as "emailStatus",do_not_contact as "doNotContact",status from prospects where deleted_at is null order by updated_at desc`,
-      db()`select id,name,subject,body_text as "bodyText",active,updated_at as "updatedAt" from email_templates where deleted_at is null order by updated_at desc`,
-      db()`select s.id,s.name,s.description,s.active,s.stop_on_reply as "stopOnReply",count(st.id)::int as steps from email_sequences s left join email_sequence_steps st on st.sequence_id=s.id where s.deleted_at is null group by s.id order by s.updated_at desc`,
-      db()`select m.id,p.name as prospect,m.recipient_email as recipient,m.subject,m.status,m.scheduled_at as "scheduledAt",m.sent_at as "sentAt",m.error_message as error from email_messages m join prospects p on p.id=m.prospect_id order by m.created_at desc limit 50`,
-    ]);
+    const [stats, prospects, templates, sequences, recent, tasks, replies] =
+      await Promise.all([
+        db()`select count(*) filter(where status='scheduled')::int as scheduled,count(*) filter(where status='sent')::int as sent,count(*) filter(where status='replied')::int as replied,count(*) filter(where status='failed')::int as failed from email_messages`,
+        db()`select id,name,email,contact_name as "contactName",contact_role as "contactRole",email_status as "emailStatus",do_not_contact as "doNotContact",status from prospects where deleted_at is null order by updated_at desc`,
+        db()`select id,name,subject,body_text as "bodyText",active,updated_at as "updatedAt" from email_templates where deleted_at is null order by updated_at desc`,
+        db()`select s.id,s.name,s.description,s.active,s.stop_on_reply as "stopOnReply",count(st.id)::int as steps from email_sequences s left join email_sequence_steps st on st.sequence_id=s.id where s.deleted_at is null group by s.id order by s.updated_at desc`,
+        db()`select m.id,p.name as prospect,m.recipient_email as recipient,m.subject,m.status,m.scheduled_at as "scheduledAt",m.sent_at as "sentAt",m.error_message as error from email_messages m join prospects p on p.id=m.prospect_id order by m.created_at desc limit 50`,
+        db()`select t.id,t.title,t.task_type as "taskType",t.priority,t.due_at as "dueAt",p.id as "prospectId",p.name as prospect,m.reply_category as "replyCategory" from sales_tasks t join prospects p on p.id=t.prospect_id left join email_messages m on m.id=t.message_id where t.status='open' order by t.due_at asc nulls first,t.priority desc limit 30`,
+        db()`select m.id,m.prospect_id as "prospectId",p.name as prospect,m.sender_email as sender,m.subject,m.body_text as preview,m.replied_at as "receivedAt",m.reply_category as category,m.reply_confidence as confidence,m.review_status as "reviewStatus" from email_messages m join prospects p on p.id=m.prospect_id where m.direction='inbound' order by m.replied_at desc nulls last limit 30`,
+      ]);
     return NextResponse.json(
       {
         configured: microsoftConfigured(),
@@ -50,6 +105,8 @@ export async function GET() {
         templates,
         sequences,
         recent,
+        tasks,
+        replies,
       },
       { headers: noStore },
     );
@@ -74,6 +131,42 @@ export async function POST(req: NextRequest) {
     );
   }
   try {
+    if (x.action === "complete_task" || x.action === "dismiss_task") {
+      const id = String(x.taskId || ""),
+        status = x.action === "complete_task" ? "completed" : "dismissed";
+      const rows =
+        await db()`update sales_tasks set status=${status},completed_at=case when ${status}='completed' then now() else null end,updated_at=now() where id=${id} and status='open' returning prospect_id as "prospectId"`;
+      if (!rows.length)
+        return NextResponse.json(
+          { error: "not_found" },
+          { status: 404, headers: noStore },
+        );
+      await db()`insert into prospect_events(prospect_id,event_type,payload) values(${rows[0].prospectId},'sales_task_closed',${db().json({ taskId: id, status })})`;
+      return NextResponse.json({ ok: true }, { headers: noStore });
+    }
+    if (x.action === "review_reply") {
+      const id = String(x.messageId || ""),
+        category = String(x.category || "") as ReplyCategory;
+      if (!replyCategories.includes(category))
+        return NextResponse.json(
+          { error: "invalid_category" },
+          { status: 400, headers: noStore },
+        );
+      const action = replyActions[category],
+        rows =
+          await db()`update email_messages set reply_category=${category},review_status=case when reply_category=${category} then 'approved' else 'changed' end,updated_at=now() where id=${id} and direction='inbound' returning prospect_id as "prospectId"`;
+      if (!rows.length)
+        return NextResponse.json(
+          { error: "not_found" },
+          { status: 404, headers: noStore },
+        );
+      await db().begin(async (sql) => {
+        await sql`update sales_tasks set title=${action.title},updated_at=now() where message_id=${id} and status='open'`;
+        await sql`update prospects set status=coalesce(${action.status || null},status),do_not_contact=case when ${Boolean(action.doNotContact)} then true else do_not_contact end,next_action=${action.next},next_action_at=now(),updated_at=now() where id=${rows[0].prospectId}`;
+        await sql`insert into prospect_events(prospect_id,event_type,payload) values(${rows[0].prospectId},'email_reply_reviewed',${sql.json({ messageId: id, category })})`;
+      });
+      return NextResponse.json({ ok: true }, { headers: noStore });
+    }
     if (x.action === "update_contact") {
       const id = String(x.prospectId || ""),
         email = String(x.email || "")

@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { databaseConfigured, db } from "../../../../lib/db";
-import { microsoftConfigured } from "../../../../lib/mailing";
+import {
+  escapeHtml,
+  MAIL_FROM,
+  microsoftConfigured,
+} from "../../../../lib/mailing";
 import { recentInbox, sendMicrosoftMail } from "../../../../lib/microsoft-mail";
+import { classifyReply } from "../../../../lib/reply-intelligence";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -49,19 +54,24 @@ export async function GET(req: NextRequest) {
     for (const item of inbox) {
       const from = item.from?.emailAddress?.address?.toLowerCase();
       if (!from) continue;
+      const decision = classifyReply(item.subject, item.bodyPreview || "");
       const rows = await db().begin(async (sql) => {
         const prospects =
-          await sql`select id from prospects where lower(email)=${from} and deleted_at is null`;
+          await sql`select id,name from prospects where lower(email)=${from} and deleted_at is null`;
         if (!prospects.length) return [];
         const p = prospects[0];
+        const inbound =
+          await sql`insert into email_messages(prospect_id,direction,status,provider_message_id,recipient_email,sender_email,sender_name,subject,body_html,body_text,replied_at,idempotency_key,reply_category,reply_confidence,review_status) values(${p.id},'inbound','replied',${item.id},${MAIL_FROM.email},${from},${p.name},${item.subject || "(Sans objet)"},${`<p>${escapeHtml(item.bodyPreview || "Aperçu indisponible")}</p>`},${item.bodyPreview || "Aperçu indisponible"},${item.receivedDateTime},${`inbound:${item.id}`},${decision.category},${decision.confidence},${decision.needsReview ? "pending" : "not_required"}) on conflict(idempotency_key) do nothing returning id`;
+        if (!inbound.length) return [];
         const changed =
           await sql`update email_enrollments set status='replied',stop_reason='reply_received',updated_at=now() where prospect_id=${p.id} and status='active' returning id`;
         if (changed.length)
           await sql`update email_messages set status='cancelled',updated_at=now() where enrollment_id in ${sql(changed.map((row: any) => row.id))} and status='scheduled'`;
-        await sql`update email_messages set status='replied',replied_at=${item.receivedDateTime},provider_message_id=coalesce(provider_message_id,${item.id}),updated_at=now() where id=(select id from email_messages where prospect_id=${p.id} and direction='outbound' and status in('sent','delivered') order by sent_at desc nulls last limit 1)`;
-        if (changed.length)
-          await sql`insert into prospect_events(prospect_id,event_type,payload) values(${p.id},'email_reply_received',${sql.json({ subject: item.subject, receivedAt: item.receivedDateTime })})`;
-        return changed;
+        await sql`update email_messages set status='replied',replied_at=${item.receivedDateTime},updated_at=now() where id=(select id from email_messages where prospect_id=${p.id} and direction='outbound' and status in('sent','delivered') order by sent_at desc nulls last limit 1)`;
+        await sql`insert into sales_tasks(prospect_id,message_id,task_type,title,priority,due_at,source) values(${p.id},${inbound[0].id},${decision.taskType},${decision.taskTitle},${decision.priority},now()+make_interval(days=>${decision.dueInDays}),'email_reply') on conflict(message_id,task_type) where message_id is not null do nothing`;
+        await sql`update prospects set do_not_contact=case when ${decision.category}='unsubscribe' then true else do_not_contact end,status=case when ${decision.category}='interested' then 'Relance' else status end,next_action=${decision.nextAction},next_action_at=now()+make_interval(days=>${decision.dueInDays}),last_contact_at=${item.receivedDateTime},updated_at=now() where id=${p.id}`;
+        await sql`insert into prospect_events(prospect_id,event_type,payload) values(${p.id},'email_reply_classified',${sql.json({ messageId: inbound[0].id, subject: item.subject, receivedAt: item.receivedDateTime, category: decision.category, confidence: decision.confidence, needsReview: decision.needsReview })})`;
+        return inbound;
       });
       if (rows.length) replies++;
     }

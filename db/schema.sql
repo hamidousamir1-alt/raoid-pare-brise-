@@ -8,6 +8,8 @@ ALTER TABLE prospects ADD COLUMN IF NOT EXISTS email_status text NOT NULL DEFAUL
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS do_not_contact boolean NOT NULL DEFAULT false;
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS last_field_visit_at timestamptz;
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS field_visit_count integer NOT NULL DEFAULT 0;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS next_action_at timestamptz;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS last_contact_at timestamptz;
 CREATE INDEX IF NOT EXISTS prospects_status_idx ON prospects(status) WHERE deleted_at IS NULL;CREATE INDEX IF NOT EXISTS prospects_zone_idx ON prospects(zone) WHERE deleted_at IS NULL;CREATE INDEX IF NOT EXISTS prospects_updated_idx ON prospects(updated_at DESC) WHERE deleted_at IS NULL;
 CREATE TABLE IF NOT EXISTS prospect_events(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,event_type text NOT NULL,payload jsonb NOT NULL DEFAULT '{}'::jsonb,created_at timestamptz NOT NULL DEFAULT now());CREATE INDEX IF NOT EXISTS prospect_events_prospect_idx ON prospect_events(prospect_id,created_at DESC);
 CREATE TABLE IF NOT EXISTS individual_customers(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),name text NOT NULL,phone text,vehicle text,registration text NOT NULL,source text NOT NULL DEFAULT 'Apport personnel',status text NOT NULL DEFAULT 'À contacter',generated_revenue numeric(12,2) NOT NULL DEFAULT 0,notes text,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),deleted_at timestamptz);
@@ -91,6 +93,27 @@ CREATE TABLE IF NOT EXISTS email_messages(
 );
 CREATE INDEX IF NOT EXISTS email_messages_prospect_idx ON email_messages(prospect_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS email_messages_scheduled_idx ON email_messages(scheduled_at) WHERE status='scheduled';
+ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS reply_category text;
+ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS reply_confidence integer;
+ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS review_status text NOT NULL DEFAULT 'not_required' CHECK(review_status IN ('not_required','pending','approved','changed','dismissed'));
+CREATE UNIQUE INDEX IF NOT EXISTS email_messages_provider_unique_idx ON email_messages(provider,provider_message_id) WHERE provider_message_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS sales_tasks(
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,
+  message_id uuid REFERENCES email_messages(id) ON DELETE RESTRICT,
+  task_type text NOT NULL,
+  title text NOT NULL,
+  status text NOT NULL DEFAULT 'open' CHECK(status IN ('open','completed','dismissed')),
+  priority integer NOT NULL DEFAULT 50 CHECK(priority BETWEEN 0 AND 100),
+  due_at timestamptz,
+  source text NOT NULL DEFAULT 'manual',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS sales_tasks_message_type_idx ON sales_tasks(message_id,task_type) WHERE message_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS sales_tasks_open_idx ON sales_tasks(status,due_at,priority DESC) WHERE status='open';
 
 CREATE TABLE IF NOT EXISTS field_visits(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,outcome text NOT NULL CHECK(outcome IN ('visited','absent','callback','not_interested','not_found','closed')),note text,latitude double precision,longitude double precision,visited_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS field_visits_prospect_idx ON field_visits(prospect_id,visited_at DESC);

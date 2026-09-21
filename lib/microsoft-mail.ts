@@ -58,7 +58,10 @@ export async function recentInbox() {
     url = new URL(
       "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages",
     );
-  url.searchParams.set("$select", "id,from,receivedDateTime,subject");
+  url.searchParams.set(
+    "$select",
+    "id,from,toRecipients,receivedDateTime,subject,bodyPreview,isRead",
+  );
   url.searchParams.set("$filter", `receivedDateTime ge ${since}`);
   url.searchParams.set("$orderby", "receivedDateTime desc");
   url.searchParams.set("$top", "100");
@@ -72,5 +75,7 @@ export async function recentInbox() {
     from?: { emailAddress?: { address?: string } };
     receivedDateTime: string;
     subject: string;
+    bodyPreview?: string;
+    isRead?: boolean;
   }>;
 }

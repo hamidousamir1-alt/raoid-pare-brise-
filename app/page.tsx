@@ -13,6 +13,16 @@ type Prospect = {
   lastFieldVisitAt?: string | null;
   updatedAt?: string;
 };
+type DailyAction = {
+  id: string;
+  prospect: string;
+  title: string;
+  priority: number;
+};
+type ActionSummary = {
+  tasks: DailyAction[];
+  replies: Array<{ id: string; reviewStatus: string }>;
+};
 const stage = (s: string) =>
   s === "Gagné"
     ? "Gagnés"
@@ -25,6 +35,10 @@ const stage = (s: string) =>
           : "Nouveaux";
 export default function Home() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [actions, setActions] = useState<ActionSummary>({
+    tasks: [],
+    replies: [],
+  });
   useEffect(() => {
     let live = true;
     (async () => {
@@ -37,6 +51,18 @@ export default function Home() {
         if (!r.ok) return;
         const d = await r.json();
         if (d.mode === "postgresql" && live) setProspects(d.items || []);
+      } catch {}
+    })();
+    (async () => {
+      try {
+        const response = await fetch("/api/mailing", { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (live)
+          setActions({
+            tasks: payload.tasks || [],
+            replies: payload.replies || [],
+          });
       } catch {}
     })();
     return () => {
@@ -141,6 +167,44 @@ export default function Home() {
             <label>TAUX DE CONVERSION</label>
             <strong>{data.conversion}%</strong>
             <em>sur dossiers décidés</em>
+          </article>
+        </div>
+        <div className="grid todayActions">
+          <article className="panel focus">
+            <p className="eyebrow">ACTIONS DU JOUR</p>
+            <h2>
+              {actions.tasks.length} action
+              {actions.tasks.length > 1 ? "s" : ""} prioritaire
+              {actions.tasks.length > 1 ? "s" : ""}
+            </h2>
+            <p>
+              {actions.tasks[0]
+                ? `${actions.tasks[0].prospect} — ${actions.tasks[0].title}`
+                : "Aucun dossier urgent. Le CRM surveille les prochaines échéances."}
+            </p>
+            <a className="primary" href="/actions">
+              Ouvrir le centre d’actions
+            </a>
+          </article>
+          <article className="panel">
+            <div className="panelhead">
+              <div>
+                <p className="eyebrow">RÉPONSES À VALIDER</p>
+                <h2>
+                  {
+                    actions.replies.filter(
+                      (reply) => reply.reviewStatus === "pending",
+                    ).length
+                  }{" "}
+                  décision(s) en attente
+                </h2>
+              </div>
+              <a href="/actions">Examiner →</a>
+            </div>
+            <p className="muted">
+              Les réponses importantes restent sous votre contrôle avant toute
+              action commerciale définitive.
+            </p>
           </article>
         </div>
         <article className="homeMission">

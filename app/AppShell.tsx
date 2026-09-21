@@ -22,6 +22,7 @@ type Prospect = {
 };
 const nav = [
   ["/", "▦", "Tableau de bord"],
+  ["/actions", "✓", "Actions"],
   ["/prospection", "◎", "Prospection"],
   ["/pipeline", "◇", "Pipeline"],
   ["/terrain", "⌖", "Terrain"],
@@ -32,10 +33,10 @@ const nav = [
 ] as const;
 const mobileNav = [
   ["/", "⌂", "Aujourd’hui"],
+  ["/actions", "✓", "Actions"],
   ["/terrain", "⌖", "Tournée"],
   ["/prospection", "◎", "Prospects"],
   ["/messages", "✉", "Messages"],
-  ["/performance", "•••", "Plus"],
 ] as const;
 const money = (n = 0) =>
   new Intl.NumberFormat("fr-FR", {
