@@ -59,13 +59,21 @@ export async function GET(
         { error: "not_found" },
         { status: 404, headers: noStore },
       );
-    const [events, contacts, documents] = await Promise.all([
+    const [events, contacts, documents, appointments] = await Promise.all([
       db()`select id,event_type as "eventType",payload,created_at as "createdAt" from prospect_events where prospect_id=${id} order by created_at desc limit 100`,
       db()`select id,name,role,email,phone,is_decision_maker as "isDecisionMaker",is_primary as "isPrimary",preferred_channel as "preferredChannel",notes from prospect_contacts where prospect_id=${id} and deleted_at is null order by is_primary desc,created_at`,
       db()`select id,name,file_name as "fileName",category,created_at as "createdAt" from documents where prospect_id=${id} and deleted_at is null order by created_at desc`,
+      db()`select id,title,meeting_type as "meetingType",starts_at as "startsAt",ends_at as "endsAt",location,status,outcome,next_action as "nextAction" from appointments where prospect_id=${id} order by starts_at desc limit 20`,
     ]);
     return NextResponse.json(
-      { mode: "postgresql", item: rows[0], events, contacts, documents },
+      {
+        mode: "postgresql",
+        item: rows[0],
+        events,
+        contacts,
+        documents,
+        appointments,
+      },
       { headers: noStore },
     );
   } catch {

@@ -32,6 +32,14 @@ type ProspectDocument = {
   category: string;
   createdAt: string;
 };
+type ProspectAppointment = {
+  id: string;
+  title: string;
+  meetingType: string;
+  startsAt: string;
+  status: string;
+  outcome?: string;
+};
 type Prospect = {
   id: string | number;
   name: string;
@@ -92,6 +100,7 @@ export default function ProspectManager() {
     [editing, setEditing] = useState<Prospect | null>(null),
     [events, setEvents] = useState<ProspectEvent[]>([]),
     [documents, setDocuments] = useState<ProspectDocument[]>([]),
+    [appointments, setAppointments] = useState<ProspectAppointment[]>([]),
     [detailBusy, setDetailBusy] = useState(false),
     [open, setOpen] = useState(false);
   useEffect(() => {
@@ -197,6 +206,7 @@ export default function ProspectManager() {
     setEditing(prospect);
     setEvents([]);
     setDocuments([]);
+    setAppointments([]);
     setOpen(true);
     if (!prospect.id) return;
     setDetailBusy(true);
@@ -209,6 +219,7 @@ export default function ProspectManager() {
       setEditing({ ...detail.item, contacts: detail.contacts || [] });
       setEvents(detail.events || []);
       setDocuments(detail.documents || []);
+      setAppointments(detail.appointments || []);
     } finally {
       setDetailBusy(false);
     }
@@ -389,6 +400,7 @@ export default function ProspectManager() {
             setEditing(fresh());
             setEvents([]);
             setDocuments([]);
+            setAppointments([]);
             setOpen(true);
           }}
         >
@@ -1012,6 +1024,27 @@ export default function ProspectManager() {
                 />
               </label>
               <div className="full recordInsights">
+                <section>
+                  <div className="sectionTitle">
+                    <div>
+                      <b>Rendez-vous</b>
+                      <small>
+                        {appointments.length} rendez-vous enregistré(s)
+                      </small>
+                    </div>
+                    <a href="/agenda">Agenda →</a>
+                  </div>
+                  {appointments.slice(0, 4).map((appointment) => (
+                    <p key={appointment.id}>
+                      <b>{appointment.title}</b> ·{" "}
+                      {new Date(appointment.startsAt).toLocaleDateString(
+                        "fr-FR",
+                      )}{" "}
+                      · {appointment.status}
+                    </p>
+                  ))}
+                  {!appointments.length && <p>Aucun rendez-vous planifié.</p>}
+                </section>
                 <section>
                   <div className="sectionTitle">
                     <div>

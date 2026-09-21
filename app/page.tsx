@@ -23,6 +23,12 @@ type ActionSummary = {
   tasks: DailyAction[];
   replies: Array<{ id: string; reviewStatus: string }>;
 };
+type AppointmentSummary = {
+  id: string;
+  prospect: string;
+  startsAt: string;
+  status: string;
+};
 const stage = (s: string) =>
   s === "Gagné"
     ? "Gagnés"
@@ -39,6 +45,7 @@ export default function Home() {
     tasks: [],
     replies: [],
   });
+  const [appointments, setAppointments] = useState<AppointmentSummary[]>([]);
   useEffect(() => {
     let live = true;
     (async () => {
@@ -51,6 +58,16 @@ export default function Home() {
         if (!r.ok) return;
         const d = await r.json();
         if (d.mode === "postgresql" && live) setProspects(d.items || []);
+      } catch {}
+    })();
+    (async () => {
+      try {
+        const response = await fetch("/api/appointments", {
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (live) setAppointments(payload.appointments || []);
       } catch {}
     })();
     (async () => {
@@ -69,6 +86,12 @@ export default function Home() {
       live = false;
     };
   }, []);
+  const todayKey = new Date().toDateString(),
+    todayAppointments = appointments.filter(
+      (appointment) =>
+        new Date(appointment.startsAt).toDateString() === todayKey &&
+        !["cancelled", "completed"].includes(appointment.status),
+    );
   const data = useMemo(() => {
     const active = prospects.filter(
         (p) => !["Gagné", "Perdu"].includes(p.status),
@@ -159,9 +182,18 @@ export default function Home() {
             <em className="amber">dossiers à reprendre</em>
           </article>
           <article>
-            <label>RDV EN COURS</label>
-            <strong>{data.rdv.length}</strong>
-            <em>dossiers au stade RDV</em>
+            <label>RDV AUJOURD’HUI</label>
+            <strong>{todayAppointments.length}</strong>
+            <em>
+              {todayAppointments[0]
+                ? `${todayAppointments[0].prospect} à ${new Date(
+                    todayAppointments[0].startsAt,
+                  ).toLocaleTimeString("fr-FR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}`
+                : "aucun rendez-vous planifié"}
+            </em>
           </article>
           <article>
             <label>TAUX DE CONVERSION</label>

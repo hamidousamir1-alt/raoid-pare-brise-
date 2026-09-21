@@ -135,6 +135,35 @@ CREATE TABLE IF NOT EXISTS sales_tasks(
 CREATE UNIQUE INDEX IF NOT EXISTS sales_tasks_message_type_idx ON sales_tasks(message_id,task_type) WHERE message_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS sales_tasks_open_idx ON sales_tasks(status,due_at,priority DESC) WHERE status='open';
 
+CREATE TABLE IF NOT EXISTS appointments(
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,
+  contact_id uuid REFERENCES prospect_contacts(id) ON DELETE SET NULL,
+  title text NOT NULL,
+  meeting_type text NOT NULL DEFAULT 'Sur place' CHECK(meeting_type IN ('Sur place','Téléphone','Visioconférence','Au centre')),
+  starts_at timestamptz NOT NULL,
+  ends_at timestamptz NOT NULL,
+  location text,
+  objective text,
+  preparation_notes text,
+  status text NOT NULL DEFAULT 'scheduled' CHECK(status IN ('scheduled','confirmed','completed','cancelled','no_show')),
+  confirmation_status text NOT NULL DEFAULT 'not_sent' CHECK(confirmation_status IN ('not_sent','draft','sent','confirmed')),
+  reminder_day boolean NOT NULL DEFAULT true,
+  reminder_hour boolean NOT NULL DEFAULT true,
+  outcome text,
+  next_action text,
+  next_action_at timestamptz,
+  external_provider text,
+  external_event_id text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CHECK(ends_at > starts_at)
+);
+CREATE INDEX IF NOT EXISTS appointments_calendar_idx ON appointments(starts_at,status);
+CREATE INDEX IF NOT EXISTS appointments_prospect_idx ON appointments(prospect_id,starts_at DESC);
+ALTER TABLE sales_tasks ADD COLUMN IF NOT EXISTS appointment_id uuid REFERENCES appointments(id) ON DELETE RESTRICT;
+CREATE UNIQUE INDEX IF NOT EXISTS sales_tasks_appointment_type_idx ON sales_tasks(appointment_id,task_type) WHERE appointment_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS field_visits(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,outcome text NOT NULL CHECK(outcome IN ('visited','absent','callback','not_interested','not_found','closed')),note text,latitude double precision,longitude double precision,visited_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS field_visits_prospect_idx ON field_visits(prospect_id,visited_at DESC);
 

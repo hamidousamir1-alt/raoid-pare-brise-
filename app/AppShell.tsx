@@ -23,6 +23,7 @@ type Prospect = {
 const nav = [
   ["/", "▦", "Tableau de bord"],
   ["/actions", "✓", "Actions"],
+  ["/agenda", "◷", "Agenda"],
   ["/prospection", "◎", "Prospection"],
   ["/pipeline", "◇", "Pipeline"],
   ["/terrain", "⌖", "Terrain"],
@@ -33,7 +34,7 @@ const nav = [
 ] as const;
 const mobileNav = [
   ["/", "⌂", "Aujourd’hui"],
-  ["/actions", "✓", "Actions"],
+  ["/agenda", "◷", "Agenda"],
   ["/terrain", "⌖", "Tournée"],
   ["/prospection", "◎", "Prospects"],
   ["/messages", "✉", "Messages"],

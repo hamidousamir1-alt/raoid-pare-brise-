@@ -104,6 +104,7 @@ export default function TourPlanner() {
     [limit, setLimit] = useState(10),
     [zone, setZone] = useState("Automatique"),
     [position, setPosition] = useState<Position | undefined>(),
+    [bookedProspects, setBookedProspects] = useState<string[]>([]),
     [busy, setBusy] = useState("");
   useEffect(() => {
     let live = true;
@@ -119,6 +120,26 @@ export default function TourPlanner() {
         if (d.mode === "postgresql" && live) setRaw(d.items || []);
       } catch {}
     })();
+    (async () => {
+      try {
+        const response = await fetch("/api/appointments", {
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const payload = await response.json();
+        const today = new Date().toDateString();
+        if (live)
+          setBookedProspects(
+            (payload.appointments || [])
+              .filter(
+                (appointment: any) =>
+                  new Date(appointment.startsAt).toDateString() === today &&
+                  !["cancelled", "completed"].includes(appointment.status),
+              )
+              .map((appointment: any) => appointment.prospectId),
+          );
+      } catch {}
+    })();
     return () => {
       live = false;
     };
@@ -130,10 +151,11 @@ export default function TourPlanner() {
           !p.doNotContact &&
           !["Perdu", "Gagné"].includes(p.status || "") &&
           p.access !== "Difficile" &&
+          !bookedProspects.includes(p.id) &&
           !excluded.includes(p.id) &&
           !done.includes(p.id),
       ),
-    [raw, excluded, done],
+    [raw, excluded, done, bookedProspects],
   );
   const selectedZone = useMemo(() => {
     if (zone !== "Automatique") return zone;
