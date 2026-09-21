@@ -6,6 +6,8 @@ ALTER TABLE prospects ADD COLUMN IF NOT EXISTS contact_name text;
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS contact_role text;
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS email_status text NOT NULL DEFAULT 'À vérifier';
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS do_not_contact boolean NOT NULL DEFAULT false;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS last_field_visit_at timestamptz;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS field_visit_count integer NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS prospects_status_idx ON prospects(status) WHERE deleted_at IS NULL;CREATE INDEX IF NOT EXISTS prospects_zone_idx ON prospects(zone) WHERE deleted_at IS NULL;CREATE INDEX IF NOT EXISTS prospects_updated_idx ON prospects(updated_at DESC) WHERE deleted_at IS NULL;
 CREATE TABLE IF NOT EXISTS prospect_events(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,event_type text NOT NULL,payload jsonb NOT NULL DEFAULT '{}'::jsonb,created_at timestamptz NOT NULL DEFAULT now());CREATE INDEX IF NOT EXISTS prospect_events_prospect_idx ON prospect_events(prospect_id,created_at DESC);
 CREATE TABLE IF NOT EXISTS individual_customers(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),name text NOT NULL,phone text,vehicle text,registration text NOT NULL,source text NOT NULL DEFAULT 'Apport personnel',status text NOT NULL DEFAULT 'À contacter',generated_revenue numeric(12,2) NOT NULL DEFAULT 0,notes text,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),deleted_at timestamptz);
@@ -89,6 +91,9 @@ CREATE TABLE IF NOT EXISTS email_messages(
 );
 CREATE INDEX IF NOT EXISTS email_messages_prospect_idx ON email_messages(prospect_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS email_messages_scheduled_idx ON email_messages(scheduled_at) WHERE status='scheduled';
+
+CREATE TABLE IF NOT EXISTS field_visits(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,outcome text NOT NULL CHECK(outcome IN ('visited','absent','callback','not_interested','not_found','closed')),note text,latitude double precision,longitude double precision,visited_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS field_visits_prospect_idx ON field_visits(prospect_id,visited_at DESC);
 
 INSERT INTO email_templates(name,subject,body_html,body_text)
 SELECT 'Premier contact flotte','Une solution vitrage pour la flotte de {{entreprise}}',

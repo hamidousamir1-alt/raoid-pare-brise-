@@ -30,6 +30,13 @@ const nav = [
   ["/messages", "✉", "Messages"],
   ["/performance", "↗", "Performance"],
 ] as const;
+const mobileNav = [
+  ["/", "⌂", "Aujourd’hui"],
+  ["/terrain", "⌖", "Tournée"],
+  ["/prospection", "◎", "Prospects"],
+  ["/messages", "✉", "Messages"],
+  ["/performance", "•••", "Plus"],
+] as const;
 const money = (n = 0) =>
   new Intl.NumberFormat("fr-FR", {
     style: "currency",
@@ -161,6 +168,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         {children}
       </div>
+      <nav className="mobileBottomNav" aria-label="Navigation mobile">
+        {mobileNav.map(([href, icon, label]) => (
+          <Link
+            key={href}
+            href={href}
+            className={path === href ? "active" : ""}
+          >
+            <i>{icon}</i>
+            <span>{label}</span>
+          </Link>
+        ))}
+      </nav>
       {selected && (
         <div className="companyOverlay" onMouseDown={() => setSelected(null)}>
           <aside

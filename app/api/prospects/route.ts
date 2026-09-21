@@ -39,7 +39,7 @@ export async function GET() {
     );
   try {
     const rows =
-      await db()`select id,name,sector,zone,address,fleet,phone,email,contact_name as "contactName",contact_role as "contactRole",email_status as "emailStatus",do_not_contact as "doNotContact",status,score,notes,next_action as "next",access,insurance,potential_revenue as "potentialRevenue",signed_revenue as "signedRevenue",generated_revenue as "generatedRevenue",updated_at as "updatedAt" from prospects where deleted_at is null order by updated_at desc`;
+      await db()`select id,name,sector,zone,address,fleet,phone,email,contact_name as "contactName",contact_role as "contactRole",email_status as "emailStatus",do_not_contact as "doNotContact",latitude,longitude,last_field_visit_at as "lastFieldVisitAt",field_visit_count as "fieldVisitCount",status,score,notes,next_action as "next",access,insurance,potential_revenue as "potentialRevenue",signed_revenue as "signedRevenue",generated_revenue as "generatedRevenue",updated_at as "updatedAt" from prospects where deleted_at is null order by updated_at desc`;
     return NextResponse.json(
       { mode: "postgresql", items: rows },
       { headers: noStore },
