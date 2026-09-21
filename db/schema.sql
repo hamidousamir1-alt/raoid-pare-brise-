@@ -1,6 +1,11 @@
 -- Rapid Pare-Brise CRM — durable PostgreSQL schema
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE IF NOT EXISTS prospects (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),name text NOT NULL,sector text,zone text,address text,fleet text,phone text,status text NOT NULL DEFAULT 'Nouveau',score integer NOT NULL DEFAULT 50 CHECK(score BETWEEN 0 AND 100),notes text,next_action text,access text NOT NULL DEFAULT 'À vérifier',insurance text NOT NULL DEFAULT 'À vérifier',place_id text,latitude double precision,longitude double precision,signed_revenue numeric(12,2) NOT NULL DEFAULT 0,generated_revenue numeric(12,2) NOT NULL DEFAULT 0,potential_revenue numeric(12,2) NOT NULL DEFAULT 0,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),deleted_at timestamptz);
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS contact_name text;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS contact_role text;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS email_status text NOT NULL DEFAULT 'À vérifier';
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS do_not_contact boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS prospects_status_idx ON prospects(status) WHERE deleted_at IS NULL;CREATE INDEX IF NOT EXISTS prospects_zone_idx ON prospects(zone) WHERE deleted_at IS NULL;CREATE INDEX IF NOT EXISTS prospects_updated_idx ON prospects(updated_at DESC) WHERE deleted_at IS NULL;
 CREATE TABLE IF NOT EXISTS prospect_events(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,event_type text NOT NULL,payload jsonb NOT NULL DEFAULT '{}'::jsonb,created_at timestamptz NOT NULL DEFAULT now());CREATE INDEX IF NOT EXISTS prospect_events_prospect_idx ON prospect_events(prospect_id,created_at DESC);
 CREATE TABLE IF NOT EXISTS individual_customers(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),name text NOT NULL,phone text,vehicle text,registration text NOT NULL,source text NOT NULL DEFAULT 'Apport personnel',status text NOT NULL DEFAULT 'À contacter',generated_revenue numeric(12,2) NOT NULL DEFAULT 0,notes text,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),deleted_at timestamptz);
@@ -8,3 +13,107 @@ CREATE INDEX IF NOT EXISTS individual_customers_registration_idx ON individual_c
 CREATE TABLE IF NOT EXISTS individual_customer_events(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),customer_id uuid NOT NULL REFERENCES individual_customers(id) ON DELETE RESTRICT,event_type text NOT NULL,payload jsonb NOT NULL DEFAULT '{}'::jsonb,created_at timestamptz NOT NULL DEFAULT now());CREATE INDEX IF NOT EXISTS individual_customer_events_customer_idx ON individual_customer_events(customer_id,created_at DESC);
 CREATE TABLE IF NOT EXISTS documents(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),name text NOT NULL,file_name text NOT NULL,mime_type text NOT NULL,size_bytes integer NOT NULL CHECK(size_bytes>0 AND size_bytes<=10485760),category text NOT NULL DEFAULT 'Autre',content bytea NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),deleted_at timestamptz);CREATE INDEX IF NOT EXISTS documents_created_idx ON documents(created_at DESC) WHERE deleted_at IS NULL;CREATE INDEX IF NOT EXISTS documents_category_idx ON documents(category) WHERE deleted_at IS NULL;
 -- Commercial records and documents are archived with deleted_at; application code must not hard-delete history.
+
+-- Mailing commercial: modèles, séquences, inscriptions et journal immuable des messages.
+CREATE TABLE IF NOT EXISTS email_templates(
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  subject text NOT NULL,
+  body_html text NOT NULL,
+  body_text text NOT NULL,
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
+);
+
+CREATE TABLE IF NOT EXISTS email_sequences(
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  description text,
+  active boolean NOT NULL DEFAULT false,
+  stop_on_reply boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
+);
+
+CREATE TABLE IF NOT EXISTS email_sequence_steps(
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  sequence_id uuid NOT NULL REFERENCES email_sequences(id) ON DELETE RESTRICT,
+  template_id uuid NOT NULL REFERENCES email_templates(id) ON DELETE RESTRICT,
+  step_order integer NOT NULL CHECK(step_order > 0),
+  delay_days integer NOT NULL DEFAULT 0 CHECK(delay_days >= 0),
+  send_automatically boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(sequence_id,step_order)
+);
+
+CREATE TABLE IF NOT EXISTS email_enrollments(
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,
+  sequence_id uuid NOT NULL REFERENCES email_sequences(id) ON DELETE RESTRICT,
+  status text NOT NULL DEFAULT 'active' CHECK(status IN ('active','paused','completed','replied','cancelled','failed')),
+  current_step integer NOT NULL DEFAULT 1,
+  next_send_at timestamptz,
+  stop_reason text,
+  enrolled_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS email_enrollments_one_active_idx ON email_enrollments(prospect_id) WHERE status='active';
+CREATE INDEX IF NOT EXISTS email_enrollments_due_idx ON email_enrollments(next_send_at) WHERE status='active';
+
+CREATE TABLE IF NOT EXISTS email_messages(
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,
+  enrollment_id uuid REFERENCES email_enrollments(id) ON DELETE RESTRICT,
+  template_id uuid REFERENCES email_templates(id) ON DELETE RESTRICT,
+  direction text NOT NULL DEFAULT 'outbound' CHECK(direction IN ('outbound','inbound')),
+  status text NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','scheduled','sending','sent','delivered','replied','failed','cancelled')),
+  provider text NOT NULL DEFAULT 'microsoft',
+  provider_message_id text,
+  recipient_email text NOT NULL,
+  sender_email text NOT NULL DEFAULT 'sasvinv13004@outlook.fr',
+  sender_name text NOT NULL DEFAULT 'Samir - Rapid Pare-Brise Marseille',
+  subject text NOT NULL,
+  body_html text NOT NULL,
+  body_text text NOT NULL,
+  scheduled_at timestamptz,
+  sent_at timestamptz,
+  replied_at timestamptz,
+  error_code text,
+  error_message text,
+  idempotency_key text NOT NULL UNIQUE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS email_messages_prospect_idx ON email_messages(prospect_id,created_at DESC);
+CREATE INDEX IF NOT EXISTS email_messages_scheduled_idx ON email_messages(scheduled_at) WHERE status='scheduled';
+
+INSERT INTO email_templates(name,subject,body_html,body_text)
+SELECT 'Premier contact flotte','Une solution vitrage pour la flotte de {{entreprise}}',
+'<p>Bonjour {{contact}},</p><p>Je me permets de vous contacter au nom de Rapid Pare-Brise Marseille afin de vous proposer une solution simple et adaptée pour la gestion des vitrages de votre flotte de véhicules.</p><p>Seriez-vous disponible pour un court échange ?</p>',
+'Bonjour {{contact}},\n\nJe me permets de vous contacter au nom de Rapid Pare-Brise Marseille afin de vous proposer une solution simple et adaptée pour la gestion des vitrages de votre flotte de véhicules.\n\nSeriez-vous disponible pour un court échange ?'
+WHERE NOT EXISTS (SELECT 1 FROM email_templates WHERE name='Premier contact flotte' AND deleted_at IS NULL);
+
+INSERT INTO email_templates(name,subject,body_html,body_text)
+SELECT 'Relance courte J+3','Suite à mon message pour {{entreprise}}','<p>Bonjour {{contact}},</p><p>Je me permets de revenir vers vous concernant la gestion des vitrages de la flotte de {{entreprise}}.</p><p>Un échange de quelques minutes vous conviendrait-il cette semaine ?</p>','Bonjour {{contact}},\n\nJe me permets de revenir vers vous concernant la gestion des vitrages de la flotte de {{entreprise}}.\n\nUn échange de quelques minutes vous conviendrait-il cette semaine ?'
+WHERE NOT EXISTS (SELECT 1 FROM email_templates WHERE name='Relance courte J+3' AND deleted_at IS NULL);
+INSERT INTO email_templates(name,subject,body_html,body_text)
+SELECT 'Relance valeur J+7','Réduire l’immobilisation de vos véhicules','<p>Bonjour {{contact}},</p><p>Notre objectif est simple : réduire le temps d’immobilisation des véhicules et faciliter la prise en charge vitrage de {{entreprise}}.</p><p>Je peux vous présenter rapidement notre fonctionnement.</p>','Bonjour {{contact}},\n\nNotre objectif est simple : réduire le temps d’immobilisation des véhicules et faciliter la prise en charge vitrage de {{entreprise}}.\n\nJe peux vous présenter rapidement notre fonctionnement.'
+WHERE NOT EXISTS (SELECT 1 FROM email_templates WHERE name='Relance valeur J+7' AND deleted_at IS NULL);
+INSERT INTO email_templates(name,subject,body_html,body_text)
+SELECT 'Dernière relance J+14','Dois-je clôturer ma demande ?','<p>Bonjour {{contact}},</p><p>Sans retour de votre part, je me permets un dernier message concernant notre solution vitrage pour {{entreprise}}.</p><p>Si le sujet n’est pas d’actualité, je clôturerai simplement ma demande.</p>','Bonjour {{contact}},\n\nSans retour de votre part, je me permets un dernier message concernant notre solution vitrage pour {{entreprise}}.\n\nSi le sujet n’est pas d’actualité, je clôturerai simplement ma demande.'
+WHERE NOT EXISTS (SELECT 1 FROM email_templates WHERE name='Dernière relance J+14' AND deleted_at IS NULL);
+
+INSERT INTO email_sequences(name,description,active,stop_on_reply)
+SELECT 'Prospection flotte J0/J+3/J+7/J+14','Séquence Rapid Pare-Brise Marseille avec arrêt automatique après réponse.',true,true
+WHERE NOT EXISTS (SELECT 1 FROM email_sequences WHERE name='Prospection flotte J0/J+3/J+7/J+14' AND deleted_at IS NULL);
+
+INSERT INTO email_sequence_steps(sequence_id,template_id,step_order,delay_days,send_automatically)
+SELECT s.id,t.id,v.step_order,v.delay_days,true
+FROM email_sequences s
+JOIN (VALUES ('Premier contact flotte',1,0),('Relance courte J+3',2,3),('Relance valeur J+7',3,7),('Dernière relance J+14',4,14)) AS v(template_name,step_order,delay_days) ON true
+JOIN email_templates t ON t.name=v.template_name AND t.deleted_at IS NULL
+WHERE s.name='Prospection flotte J0/J+3/J+7/J+14' AND s.deleted_at IS NULL
+ON CONFLICT(sequence_id,step_order) DO NOTHING;
