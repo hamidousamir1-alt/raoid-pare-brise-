@@ -177,6 +177,27 @@ CREATE TABLE IF NOT EXISTS prospect_merges(
 );
 CREATE INDEX IF NOT EXISTS prospect_merges_master_idx ON prospect_merges(master_prospect_id,merged_at DESC);
 
+CREATE TABLE IF NOT EXISTS call_logs(
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,
+  contact_id uuid REFERENCES prospect_contacts(id) ON DELETE SET NULL,
+  direction text NOT NULL DEFAULT 'outbound' CHECK(direction IN ('outbound','inbound')),
+  outcome text NOT NULL CHECK(outcome IN ('answered','no_answer','callback','interested','appointment','information','wrong_contact','not_interested')),
+  started_at timestamptz NOT NULL DEFAULT now(),
+  duration_seconds integer NOT NULL DEFAULT 0 CHECK(duration_seconds BETWEEN 0 AND 86400),
+  notes text,
+  next_action text,
+  next_action_at timestamptz,
+  previous_status text,
+  resulting_status text,
+  appointment_id uuid REFERENCES appointments(id) ON DELETE RESTRICT,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS call_logs_prospect_idx ON call_logs(prospect_id,started_at DESC);
+CREATE INDEX IF NOT EXISTS call_logs_recent_idx ON call_logs(started_at DESC);
+ALTER TABLE sales_tasks ADD COLUMN IF NOT EXISTS call_id uuid REFERENCES call_logs(id) ON DELETE RESTRICT;
+CREATE UNIQUE INDEX IF NOT EXISTS sales_tasks_call_type_idx ON sales_tasks(call_id,task_type) WHERE call_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS field_visits(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,outcome text NOT NULL CHECK(outcome IN ('visited','absent','callback','not_interested','not_found','closed')),note text,latitude double precision,longitude double precision,visited_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS field_visits_prospect_idx ON field_visits(prospect_id,visited_at DESC);
 

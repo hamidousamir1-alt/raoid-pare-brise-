@@ -24,6 +24,7 @@ const nav = [
   ["/", "▦", "Tableau de bord"],
   ["/actions", "✓", "Actions"],
   ["/agenda", "◷", "Agenda"],
+  ["/appels", "☎", "Appels"],
   ["/prospection", "◎", "Prospection"],
   ["/pipeline", "◇", "Pipeline"],
   ["/terrain", "⌖", "Terrain"],
