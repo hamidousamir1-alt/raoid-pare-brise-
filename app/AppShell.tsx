@@ -32,6 +32,7 @@ const nav = [
   ["/partenaires", "♢", "Partenaires"],
   ["/documents", "▤", "Documents"],
   ["/donnees", "◉", "Données"],
+  ["/enrichissement", "⌕", "Importer & enrichir"],
   ["/messages", "✉", "Messages"],
   ["/performance", "↗", "Performance"],
   ["/reglages", "⚙", "Réglages"],

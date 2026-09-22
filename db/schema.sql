@@ -280,6 +280,10 @@ CREATE TABLE IF NOT EXISTS automation_audit(id uuid PRIMARY KEY DEFAULT gen_rand
 CREATE INDEX IF NOT EXISTS automation_audit_recent_idx ON automation_audit(changed_at DESC);
 CREATE TABLE IF NOT EXISTS crm_backups(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),label text NOT NULL,payload jsonb NOT NULL,record_count integer NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS crm_backups_recent_idx ON crm_backups(created_at DESC);
+CREATE TABLE IF NOT EXISTS import_batches(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),file_name text NOT NULL,status text NOT NULL DEFAULT 'completed' CHECK(status IN ('completed','rolled_back')),created_count integer NOT NULL DEFAULT 0,updated_count integer NOT NULL DEFAULT 0,skipped_count integer NOT NULL DEFAULT 0,created_at timestamptz NOT NULL DEFAULT now(),rolled_back_at timestamptz);
+CREATE INDEX IF NOT EXISTS import_batches_recent_idx ON import_batches(created_at DESC);
+CREATE TABLE IF NOT EXISTS import_batch_rows(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),batch_id uuid NOT NULL REFERENCES import_batches(id) ON DELETE RESTRICT,prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,operation text NOT NULL CHECK(operation IN ('created','updated')),before_data jsonb,created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS import_batch_rows_batch_idx ON import_batch_rows(batch_id);
 INSERT INTO automation_settings(setting_key,label,category,enabled,numeric_value,unit,description) VALUES
 ('mailing_sequence','Séquence e-mail automatique','Mailing',true,14,'jours','Relances J0, J+3, J+7 et J+14 avec arrêt sur réponse.'),
 ('offer_follow_up','Relance après une offre','Commercial',true,3,'jours','Crée une relance après l’envoi d’une offre.'),
