@@ -100,14 +100,26 @@ export async function POST(req: NextRequest) {
           );
       }
       const rows = await db().begin(async (sql) => {
+        const reminderSettings =
+          await sql`select setting_key,enabled from automation_settings where setting_key in ('appointment_day_reminder','appointment_hour_reminder')`;
+        const dayEnabled =
+          reminderSettings.find(
+            (row: any) => row.setting_key === "appointment_day_reminder",
+          )?.enabled ?? true;
+        const hourEnabled =
+          reminderSettings.find(
+            (row: any) => row.setting_key === "appointment_hour_reminder",
+          )?.enabled ?? true;
+        const reminderDay = Boolean(x.reminderDay ?? true) && dayEnabled;
+        const reminderHour = Boolean(x.reminderHour ?? true) && hourEnabled;
         const created =
-          await sql`insert into appointments(prospect_id,contact_id,title,meeting_type,starts_at,ends_at,location,objective,preparation_notes,reminder_day,reminder_hour) select p.id,${contactId || null},${title},${meetingType},${startsAt.toISOString()},${endsAt.toISOString()},${String(x.location || "")},${String(x.objective || "")},${String(x.preparationNotes || "")},${Boolean(x.reminderDay ?? true)},${Boolean(x.reminderHour ?? true)} from prospects p where p.id=${prospectId} and p.deleted_at is null returning id`;
+          await sql`insert into appointments(prospect_id,contact_id,title,meeting_type,starts_at,ends_at,location,objective,preparation_notes,reminder_day,reminder_hour) select p.id,${contactId || null},${title},${meetingType},${startsAt.toISOString()},${endsAt.toISOString()},${String(x.location || "")},${String(x.objective || "")},${String(x.preparationNotes || "")},${reminderDay},${reminderHour} from prospects p where p.id=${prospectId} and p.deleted_at is null returning id`;
         if (!created.length) return [];
         await sql`update prospects set status='RDV',next_action='Préparer le rendez-vous',next_action_at=${startsAt.toISOString()},updated_at=now() where id=${prospectId}`;
         await sql`insert into sales_tasks(prospect_id,appointment_id,task_type,title,priority,due_at,source) values(${prospectId},${created[0].id},'appointment_preparation','Préparer le rendez-vous',90,${new Date(startsAt.getTime() - 86400_000).toISOString()},'appointment')`;
-        if (Boolean(x.reminderDay ?? true))
+        if (reminderDay)
           await sql`insert into sales_tasks(prospect_id,appointment_id,task_type,title,priority,due_at,source) values(${prospectId},${created[0].id},'appointment_confirmation','Confirmer le rendez-vous avec le prospect',88,${new Date(startsAt.getTime() - 86400_000).toISOString()},'appointment')`;
-        if (Boolean(x.reminderHour ?? true))
+        if (reminderHour)
           await sql`insert into sales_tasks(prospect_id,appointment_id,task_type,title,priority,due_at,source) values(${prospectId},${created[0].id},'appointment_reminder','Rendez-vous dans une heure',98,${new Date(startsAt.getTime() - 3600_000).toISOString()},'appointment')`;
         await sql`insert into prospect_events(prospect_id,event_type,payload) values(${prospectId},'appointment_created',${sql.json({ appointmentId: created[0].id, startsAt: startsAt.toISOString(), meetingType })})`;
         return created;

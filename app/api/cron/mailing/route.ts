@@ -24,6 +24,10 @@ export async function GET(req: NextRequest) {
       { error: "database_not_configured" },
       { status: 503 },
     );
+  const automation =
+    await db()`select enabled from automation_settings where setting_key='mailing_sequence'`;
+  if (automation.length && !automation[0].enabled)
+    return NextResponse.json({ ok: true, paused: true, sent: 0, replies: 0 });
   if (!microsoftConfigured())
     return NextResponse.json({
       ok: true,

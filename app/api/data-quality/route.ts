@@ -70,6 +70,9 @@ export async function GET() {
   const denied = await guard();
   if (denied) return denied;
   try {
+    const reviewSettings =
+      await db()`select numeric_value as days from automation_settings where setting_key='data_review'`;
+    const reviewDays = Number(reviewSettings[0]?.days ?? 90);
     const prospects =
       (await db()`select id,name,sector,address,postal_code as "postalCode",city,phone,email,siret,status,score,data_quality_score as "dataQualityScore",fleet_count as "fleetCount",fleet_confidence as "fleetConfidence",next_action as "next",updated_at as "updatedAt",data_verified_at as "dataVerifiedAt" from prospects where deleted_at is null order by updated_at desc`) as Prospect[];
     const duplicates: Array<{
@@ -109,7 +112,7 @@ export async function GET() {
                 prospect.dataVerifiedAt || prospect.updatedAt,
               ).getTime()) /
             86400000;
-          if (age > 90)
+          if (age > reviewDays)
             reasons.push(
               `Données non vérifiées depuis ${Math.floor(age)} jours`,
             );
@@ -130,7 +133,7 @@ export async function GET() {
           possibleDuplicates: duplicates.length,
           incomplete: prospects.filter((p) => (p.dataQualityScore || 0) < 70)
             .length,
-          stale: issues.filter((p) => p.age > 90).length,
+          stale: issues.filter((p) => p.age > reviewDays).length,
         },
       },
       { headers: noStore },
