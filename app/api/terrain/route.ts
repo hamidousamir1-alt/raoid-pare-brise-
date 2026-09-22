@@ -68,11 +68,53 @@ export async function POST(req: NextRequest) {
                       ? "Aucune relance"
                       : "À planifier";
       await sql`update prospects set last_field_visit_at=now(),field_visit_count=field_visit_count+1,status=coalesce(${status},status),next_action=${next},updated_at=now() where id=${id}`;
+      await sql`update prospects set planned_route_date=null where id=${id}`;
       await sql`insert into prospect_events(prospect_id,event_type,payload) values(${id},'field_visit',${sql.json({ outcome, note, visitId: visit[0].id })})`;
-      return visit;
+      const task =
+        outcome === "visited"
+          ? {
+              type: "appointment_follow_up",
+              title: "Appeler pour convenir d’un rendez-vous",
+              days: 1,
+              priority: 85,
+            }
+          : outcome === "callback"
+            ? {
+                type: "field_callback",
+                title: "Effectuer la relance demandée",
+                days: 2,
+                priority: 90,
+              }
+            : outcome === "absent"
+              ? {
+                  type: "field_retry",
+                  title: "Rappeler ou repasser dans l’entreprise",
+                  days: 3,
+                  priority: 70,
+                }
+              : outcome === "closed"
+                ? {
+                    type: "field_retry",
+                    title: "Reprogrammer le passage terrain",
+                    days: 2,
+                    priority: 65,
+                  }
+                : outcome === "not_found"
+                  ? {
+                      type: "address_check",
+                      title: "Vérifier l’adresse de l’entreprise",
+                      days: 1,
+                      priority: 75,
+                    }
+                  : null;
+      if (task)
+        await sql`insert into sales_tasks(prospect_id,field_visit_id,task_type,title,priority,due_at,source) values(${id},${visit[0].id},${task.type},${task.title},${task.priority},now()+(${task.days}||' days')::interval,'terrain') on conflict(field_visit_id,task_type) where field_visit_id is not null do nothing`;
+      return [
+        { ...visit[0], nextAction: next, taskTitle: task?.title || null },
+      ];
     });
     return rows.length
-      ? NextResponse.json({ ok: true }, { headers: noStore })
+      ? NextResponse.json({ ok: true, ...rows[0] }, { headers: noStore })
       : NextResponse.json(
           { error: "not_found" },
           { status: 404, headers: noStore },

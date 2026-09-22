@@ -19,6 +19,7 @@ type Prospect = {
   longitude?: number | null;
   lastFieldVisitAt?: string | null;
   fieldVisitCount?: number;
+  plannedRouteDate?: string | null;
 };
 type Stop = Prospect & { priority: number; distance: number; reason: string };
 type Position = { latitude: number; longitude: number };
@@ -72,7 +73,9 @@ function commercialValue(p: Prospect) {
     base = Math.min(55, (p.score || 50) * 0.42 + Math.log10(potential + 1) * 4),
     insurance =
       p.insurance === "Forte" ? -14 : p.insurance === "Moyenne" ? -5 : 0;
-  return base + accessValue(p.access) + freshness(p) + insurance;
+  const planned =
+    p.plannedRouteDate === new Date().toISOString().slice(0, 10) ? 45 : 0;
+  return base + accessValue(p.access) + freshness(p) + insurance + planned;
 }
 function orderNearest(items: Stop[], start: Position) {
   const left = [...items],
@@ -106,6 +109,7 @@ export default function TourPlanner() {
     [position, setPosition] = useState<Position | undefined>(),
     [bookedProspects, setBookedProspects] = useState<string[]>([]),
     [busy, setBusy] = useState("");
+  const [recommendation, setRecommendation] = useState("");
   useEffect(() => {
     let live = true;
     (async () => {
@@ -228,9 +232,12 @@ export default function TourPlanner() {
   async function outcome(s: Stop, value: string) {
     setBusy(s.id);
     const note =
-      value === "visited"
-        ? prompt("Note rapide ou nom de la personne rencontrée", "") || ""
-        : "";
+      prompt(
+        value === "visited"
+          ? "Personne rencontrée, besoin ou information utile"
+          : "Note rapide facultative pour préparer la prochaine action",
+        "",
+      ) || "";
     try {
       const r = await fetch("/api/terrain", {
         method: "POST",
@@ -244,7 +251,13 @@ export default function TourPlanner() {
         }),
       });
       if (!r.ok) throw new Error();
+      const result = await r.json();
       setDone((old) => [...old, s.id]);
+      setRecommendation(
+        result.taskTitle
+          ? `${s.name} : ${result.taskTitle}. L’action a été ajoutée automatiquement.`
+          : `${s.name} : compte rendu enregistré.`,
+      );
     } catch {
       alert("La visite n’a pas pu être enregistrée.");
     } finally {
@@ -310,6 +323,12 @@ export default function TourPlanner() {
         <button onClick={locate}>⌖ Ma position</button>
         <span className="auto">Gratuit · aucune API payante</span>
       </div>
+      {recommendation && (
+        <div className="panel" role="status">
+          <b>✓ Prochaine action préparée</b>
+          <p>{recommendation}</p>
+        </div>
+      )}
       <div className="terrainGrid">
         <section className="panel stopList">
           <div className="panelhead">
@@ -328,6 +347,10 @@ export default function TourPlanner() {
                   <small>🚐 {s.fleet || "flotte à qualifier"}</small>
                   <small>⌖ ~{s.distance.toFixed(1)} km</small>
                   <small>{s.access || "accès à vérifier"}</small>
+                  {s.plannedRouteDate ===
+                    new Date().toISOString().slice(0, 10) && (
+                    <small>✓ sélection du jour</small>
+                  )}
                 </div>
                 <div className="navlinks">
                   <a href={maps(s)} target="_blank" rel="noopener noreferrer">

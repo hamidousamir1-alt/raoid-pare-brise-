@@ -82,7 +82,8 @@ export default function EnrichmentPage() {
   const [q, setQ] = useState(""),
     [postal, setPostal] = useState("13014"),
     [companies, setCompanies] = useState<Company[]>([]),
-    [searchInfo, setSearchInfo] = useState("");
+    [searchInfo, setSearchInfo] = useState(""),
+    [selected, setSelected] = useState<string[]>([]);
   async function loadBatches() {
     const r = await fetch("/api/imports", { cache: "no-store" });
     if (r.ok) setBatches((await r.json()).batches || []);
@@ -174,6 +175,7 @@ export default function EnrichmentPage() {
       return;
     }
     setCompanies(data.items || []);
+    setSelected([]);
     setSearchInfo(
       `${data.total || data.items.length} entreprises trouvées — données publiques INSEE.`,
     );
@@ -205,9 +207,31 @@ export default function EnrichmentPage() {
       );
     else setSearchInfo("L’entreprise n’a pas pu être ajoutée.");
   }
+  async function planSelection() {
+    const chosen = companies.filter((company) =>
+      selected.includes(company.siret),
+    );
+    if (!chosen.length) return;
+    setBusy("plan");
+    const response = await fetch("/api/company-search/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companies: chosen }),
+    });
+    const data = await response.json();
+    setBusy("");
+    if (!response.ok) {
+      setSearchInfo("La tournée n’a pas pu être préparée.");
+      return;
+    }
+    setSearchInfo(
+      `${data.planned} entreprises ajoutées à la tournée du jour, dont ${data.created} nouvelles fiches.`,
+    );
+    setSelected([]);
+  }
   return (
     <main className="workspace enrichPage">
-      <style>{`.enrichPage{display:grid;gap:18px}.enrichHead{display:flex;justify-content:space-between;gap:18px;align-items:flex-end}.enrichHead h1{margin:4px 0 7px}.tabs{display:flex;gap:7px;padding:5px;background:#eef1f5;border-radius:12px}.tabs button{border:0;background:transparent}.tabs .active{background:#fff;box-shadow:0 3px 12px #13223a14}.panel,.stat{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:20px}.searchForm{display:grid;grid-template-columns:1fr 150px auto;gap:9px}.searchForm input,.mapping select,.fileBox input{width:100%}.info{padding:12px 14px;background:#f4f7fa;border-radius:10px;color:#58667a;font-size:11px}.companyGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.companyCard{padding:17px;border:1px solid #e6eaf0;border-radius:14px;display:grid;gap:10px}.companyCard header{display:flex;justify-content:space-between;gap:12px}.companyCard h3{margin:0;font-size:16px}.companyMeta{color:#647187;font-size:10px;line-height:1.6}.score{min-width:62px;text-align:center}.score b{display:block;font-size:19px}.verified{color:#287348}.importTop{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}.fileBox{border:1px dashed #ccd3dd;border-radius:14px;padding:20px}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:14px 0}.stat{padding:13px}.stat small,.stat b{display:block}.stat b{font-size:21px;margin-top:5px}.mapping{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.mapping label{font-size:9px;color:#6e798b}.mapping span{display:block;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis}.previewTable{overflow:auto;max-height:390px;margin-top:15px}.previewTable table{width:100%;border-collapse:collapse;font-size:9px}.previewTable th,.previewTable td{padding:9px;border-bottom:1px solid #edf0f4;text-align:left;white-space:nowrap}.duplicate{color:#b14a42}.actionsRow{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:14px}.historyLine{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid #edf0f4}.historyLine small{display:block;color:#778297;margin-top:4px}@media(max-width:850px){.enrichHead,.actionsRow{align-items:stretch;flex-direction:column}.tabs{width:100%}.tabs button{flex:1}.searchForm,.importTop,.companyGrid{grid-template-columns:1fr}.mapping{grid-template-columns:1fr 1fr}.kpis{grid-template-columns:1fr 1fr}}`}</style>
+      <style>{`.enrichPage{display:grid;gap:18px}.enrichHead{display:flex;justify-content:space-between;gap:18px;align-items:flex-end}.enrichHead h1{margin:4px 0 7px}.tabs{display:flex;gap:7px;padding:5px;background:#eef1f5;border-radius:12px}.tabs button{border:0;background:transparent}.tabs .active{background:#fff;box-shadow:0 3px 12px #13223a14}.panel,.stat{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:20px}.searchForm{display:grid;grid-template-columns:1fr 150px auto;gap:9px}.searchForm input,.mapping select,.fileBox input{width:100%}.info{padding:12px 14px;background:#f4f7fa;border-radius:10px;color:#58667a;font-size:11px}.companyGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.companyCard{padding:17px;border:1px solid #e6eaf0;border-radius:14px;display:grid;gap:10px}.companyCard.selected{border-color:#d34848;box-shadow:0 0 0 2px #d3484818}.companyCard header{display:flex;justify-content:space-between;gap:12px}.companyCard h3{margin:0;font-size:16px}.selectCompany{display:flex;align-items:center;gap:8px;font-size:10px}.selectCompany input{width:17px;height:17px}.selectionBar{position:sticky;bottom:78px;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;background:#111827;color:#fff;border-radius:14px;box-shadow:0 12px 35px #11182740}.selectionBar p{margin:0;font-size:11px}.selectionBar a{color:#fff}.companyMeta{color:#647187;font-size:10px;line-height:1.6}.score{min-width:62px;text-align:center}.score b{display:block;font-size:19px}.verified{color:#287348}.importTop{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}.fileBox{border:1px dashed #ccd3dd;border-radius:14px;padding:20px}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:14px 0}.stat{padding:13px}.stat small,.stat b{display:block}.stat b{font-size:21px;margin-top:5px}.mapping{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.mapping label{font-size:9px;color:#6e798b}.mapping span{display:block;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis}.previewTable{overflow:auto;max-height:390px;margin-top:15px}.previewTable table{width:100%;border-collapse:collapse;font-size:9px}.previewTable th,.previewTable td{padding:9px;border-bottom:1px solid #edf0f4;text-align:left;white-space:nowrap}.duplicate{color:#b14a42}.actionsRow{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:14px}.historyLine{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid #edf0f4}.historyLine small{display:block;color:#778297;margin-top:4px}@media(max-width:850px){.enrichHead,.actionsRow{align-items:stretch;flex-direction:column}.tabs{width:100%}.tabs button{flex:1}.searchForm,.importTop,.companyGrid{grid-template-columns:1fr}.mapping{grid-template-columns:1fr 1fr}.kpis{grid-template-columns:1fr 1fr}.selectionBar{bottom:72px;flex-direction:column;align-items:stretch}}`}</style>
       <header className="enrichHead">
         <div>
           <p className="eyebrow">DONNÉES & PROSPECTION</p>
@@ -262,7 +286,24 @@ export default function EnrichmentPage() {
           </section>
           <section className="companyGrid">
             {companies.map((company) => (
-              <article className="companyCard" key={company.siret}>
+              <article
+                className={`companyCard ${selected.includes(company.siret) ? "selected" : ""}`}
+                key={company.siret}
+              >
+                <label className="selectCompany">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(company.siret)}
+                    onChange={(event) =>
+                      setSelected((old) =>
+                        event.target.checked
+                          ? [...old, company.siret]
+                          : old.filter((siret) => siret !== company.siret),
+                      )
+                    }
+                  />
+                  Sélectionner pour la tournée du jour
+                </label>
                 <header>
                   <div>
                     <h3>{company.name}</h3>
@@ -310,6 +351,23 @@ export default function EnrichmentPage() {
               </article>
             ))}
           </section>
+          {selected.length > 0 && (
+            <aside className="selectionBar">
+              <p>
+                <b>{selected.length} entreprises sélectionnées</b>
+                <br />
+                Création des fiches et optimisation dans Terrain.
+              </p>
+              <button
+                className="primary"
+                disabled={busy === "plan"}
+                onClick={planSelection}
+              >
+                {busy === "plan" ? "Préparation…" : "Préparer ma tournée"}
+              </button>
+              <a href="/terrain">Ouvrir Terrain →</a>
+            </aside>
+          )}
         </>
       ) : (
         <>
