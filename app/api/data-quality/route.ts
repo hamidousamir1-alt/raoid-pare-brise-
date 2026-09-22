@@ -211,6 +211,10 @@ export async function POST(req: NextRequest) {
       await sql`update appointments set prospect_id=${masterId},updated_at=now() where prospect_id=${duplicateId}`;
       await sql`update call_logs set prospect_id=${masterId} where prospect_id=${duplicateId}`;
       await sql`update commercial_offers set prospect_id=${masterId},updated_at=now() where prospect_id=${duplicateId}`;
+      await sql`update fleet_vehicles v set registration=v.registration||'-FUSION-'||left(v.id::text,6),updated_at=now() where v.prospect_id=${duplicateId} and exists(select 1 from fleet_vehicles m where m.prospect_id=${masterId} and upper(m.registration)=upper(v.registration))`;
+      await sql`update fleet_vehicles set prospect_id=${masterId},updated_at=now() where prospect_id=${duplicateId}`;
+      await sql`update service_cases set prospect_id=${masterId},updated_at=now() where prospect_id=${duplicateId}`;
+      await sql`update partner_profiles set prospect_id=${masterId},updated_at=now() where prospect_id=${duplicateId} and not exists(select 1 from partner_profiles where prospect_id=${masterId})`;
       await sql`update prospect_events set prospect_id=${masterId} where prospect_id=${duplicateId}`;
       await sql`update prospects set deleted_at=now(),merged_into_id=${masterId},updated_at=now() where id=${duplicateId}`;
       await sql`insert into prospect_events(prospect_id,event_type,payload) values(${masterId},'prospects_merged',${sql.json({ mergedProspectId: duplicateId, mergedName: duplicate.name })})`;

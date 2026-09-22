@@ -59,15 +59,25 @@ export async function GET(
         { error: "not_found" },
         { status: 404, headers: noStore },
       );
-    const [events, contacts, documents, appointments, calls, offers] =
-      await Promise.all([
-        db()`select id,event_type as "eventType",payload,created_at as "createdAt" from prospect_events where prospect_id=${id} order by created_at desc limit 100`,
-        db()`select id,name,role,email,phone,is_decision_maker as "isDecisionMaker",is_primary as "isPrimary",preferred_channel as "preferredChannel",notes from prospect_contacts where prospect_id=${id} and deleted_at is null order by is_primary desc,created_at`,
-        db()`select id,name,file_name as "fileName",category,created_at as "createdAt" from documents where prospect_id=${id} and deleted_at is null order by created_at desc`,
-        db()`select id,title,meeting_type as "meetingType",starts_at as "startsAt",ends_at as "endsAt",location,status,outcome,next_action as "nextAction" from appointments where prospect_id=${id} order by starts_at desc limit 20`,
-        db()`select id,direction,outcome,started_at as "startedAt",duration_seconds as "durationSeconds",notes,next_action as "nextAction",next_action_at as "nextActionAt",previous_status as "previousStatus",resulting_status as "resultingStatus" from call_logs where prospect_id=${id} order by started_at desc limit 30`,
-        db()`select id,title,offer_type as "offerType",status,amount,valid_until as "validUntil",summary,terms,sent_at as "sentAt",viewed_at as "viewedAt",decided_at as "decidedAt",refusal_reason as "refusalReason",created_at as "createdAt" from commercial_offers where prospect_id=${id} order by created_at desc limit 30`,
-      ]);
+    const [
+      events,
+      contacts,
+      documents,
+      appointments,
+      calls,
+      offers,
+      vehicles,
+      serviceCases,
+    ] = await Promise.all([
+      db()`select id,event_type as "eventType",payload,created_at as "createdAt" from prospect_events where prospect_id=${id} order by created_at desc limit 100`,
+      db()`select id,name,role,email,phone,is_decision_maker as "isDecisionMaker",is_primary as "isPrimary",preferred_channel as "preferredChannel",notes from prospect_contacts where prospect_id=${id} and deleted_at is null order by is_primary desc,created_at`,
+      db()`select id,name,file_name as "fileName",category,created_at as "createdAt" from documents where prospect_id=${id} and deleted_at is null order by created_at desc`,
+      db()`select id,title,meeting_type as "meetingType",starts_at as "startsAt",ends_at as "endsAt",location,status,outcome,next_action as "nextAction" from appointments where prospect_id=${id} order by starts_at desc limit 20`,
+      db()`select id,direction,outcome,started_at as "startedAt",duration_seconds as "durationSeconds",notes,next_action as "nextAction",next_action_at as "nextActionAt",previous_status as "previousStatus",resulting_status as "resultingStatus" from call_logs where prospect_id=${id} order by started_at desc limit 30`,
+      db()`select id,title,offer_type as "offerType",status,amount,valid_until as "validUntil",summary,terms,sent_at as "sentAt",viewed_at as "viewedAt",decided_at as "decidedAt",refusal_reason as "refusalReason",created_at as "createdAt" from commercial_offers where prospect_id=${id} order by created_at desc limit 30`,
+      db()`select id,registration,make,model,vehicle_year as "vehicleYear",driver_name as "driverName",notes,active from fleet_vehicles where prospect_id=${id} order by active desc,registration`,
+      db()`select id,vehicle_id as "vehicleId",request_type as "requestType",status,requested_at as "requestedAt",scheduled_at as "scheduledAt",completed_at as "completedAt",insurer,claim_number as "claimNumber",amount,notes,satisfaction from service_cases where prospect_id=${id} order by requested_at desc limit 50`,
+    ]);
     return NextResponse.json(
       {
         mode: "postgresql",
@@ -78,6 +88,8 @@ export async function GET(
         appointments,
         calls,
         offers,
+        vehicles,
+        serviceCases,
       },
       { headers: noStore },
     );

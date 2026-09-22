@@ -220,6 +220,53 @@ CREATE INDEX IF NOT EXISTS commercial_offers_status_idx ON commercial_offers(sta
 ALTER TABLE sales_tasks ADD COLUMN IF NOT EXISTS offer_id uuid REFERENCES commercial_offers(id) ON DELETE RESTRICT;
 CREATE UNIQUE INDEX IF NOT EXISTS sales_tasks_offer_type_idx ON sales_tasks(offer_id,task_type) WHERE offer_id IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS partner_profiles(
+  prospect_id uuid PRIMARY KEY REFERENCES prospects(id) ON DELETE RESTRICT,
+  onboarding_status text NOT NULL DEFAULT 'pending' CHECK(onboarding_status IN ('pending','active','paused')),
+  agreement_started_at date,
+  next_review_at date,
+  satisfaction integer CHECK(satisfaction IS NULL OR satisfaction BETWEEN 1 AND 5),
+  operational_notes text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS fleet_vehicles(
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,
+  registration text NOT NULL,
+  make text,
+  model text,
+  vehicle_year integer,
+  driver_name text,
+  notes text,
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(prospect_id,registration)
+);
+CREATE INDEX IF NOT EXISTS fleet_vehicles_prospect_idx ON fleet_vehicles(prospect_id,active);
+CREATE TABLE IF NOT EXISTS service_cases(
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,
+  vehicle_id uuid REFERENCES fleet_vehicles(id) ON DELETE SET NULL,
+  request_type text NOT NULL CHECK(request_type IN ('windshield','side','rear','roof','other')),
+  status text NOT NULL DEFAULT 'new' CHECK(status IN ('new','scheduled','in_progress','completed','cancelled')),
+  requested_at timestamptz NOT NULL DEFAULT now(),
+  scheduled_at timestamptz,
+  completed_at timestamptz,
+  insurer text,
+  claim_number text,
+  amount numeric(12,2) NOT NULL DEFAULT 0 CHECK(amount >= 0),
+  notes text,
+  satisfaction integer CHECK(satisfaction IS NULL OR satisfaction BETWEEN 1 AND 5),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS service_cases_prospect_idx ON service_cases(prospect_id,requested_at DESC);
+CREATE INDEX IF NOT EXISTS service_cases_status_idx ON service_cases(status,scheduled_at);
+ALTER TABLE sales_tasks ADD COLUMN IF NOT EXISTS service_case_id uuid REFERENCES service_cases(id) ON DELETE RESTRICT;
+CREATE UNIQUE INDEX IF NOT EXISTS sales_tasks_service_case_type_idx ON sales_tasks(service_case_id,task_type) WHERE service_case_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS field_visits(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,outcome text NOT NULL CHECK(outcome IN ('visited','absent','callback','not_interested','not_found','closed')),note text,latitude double precision,longitude double precision,visited_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS field_visits_prospect_idx ON field_visits(prospect_id,visited_at DESC);
 

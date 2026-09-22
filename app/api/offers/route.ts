@@ -128,6 +128,7 @@ export async function POST(req: NextRequest) {
       if (status === "viewed")
         await sql`update prospects set status='Offre',next_action='Contacter le prospect après consultation',next_action_at=now()+interval '1 day',updated_at=now() where id=${offer.prospectId}`;
       if (status === "accepted") {
+        await sql`insert into partner_profiles(prospect_id,onboarding_status,agreement_started_at,next_review_at) values(${offer.prospectId},'pending',current_date,current_date+90) on conflict(prospect_id) do update set agreement_started_at=coalesce(partner_profiles.agreement_started_at,excluded.agreement_started_at),updated_at=now()`;
         await sql`update prospects set status='Gagné',signed_revenue=greatest(signed_revenue,${Number(offer.amount)}),next_action='Organiser le démarrage du partenariat',next_action_at=now()+interval '1 day',updated_at=now() where id=${offer.prospectId}`;
         await sql`update sales_tasks set status='completed',completed_at=now(),updated_at=now() where offer_id=${offerId} and status='open'`;
         await sql`insert into sales_tasks(prospect_id,offer_id,task_type,title,priority,due_at,source) values(${offer.prospectId},${offerId},'partnership_onboarding','Organiser le démarrage du partenariat',95,now()+interval '1 day','offer') on conflict(offer_id,task_type) where offer_id is not null do nothing`;
