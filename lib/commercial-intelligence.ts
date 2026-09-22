@@ -25,6 +25,8 @@ export type IntelligenceProspect = {
   openTasks?: number;
   preferredChannel?: string | null;
   overriddenAction?: string | null;
+  observedSample?: number;
+  observedSuccessRate?: number;
 };
 
 const daysSince = (date?: string | null) =>
@@ -85,7 +87,10 @@ export function recommendationFor(p: IntelligenceProspect) {
     stageProbability(p.status) * 55 +
       engagement * 0.8 +
       fit * 0.45 -
-      (age > 30 ? 12 : 0),
+      (age > 30 ? 12 : 0) +
+      ((p.observedSample || 0) >= 5
+        ? Math.max(-10, Math.min(10, ((p.observedSuccessRate || 0) - 0.2) * 35))
+        : 0),
     5,
     p.status === "Gagné" ? 100 : 92,
   );
@@ -94,6 +99,9 @@ export function recommendationFor(p: IntelligenceProspect) {
     overdue ? "échéance dépassée" : "",
     fit >= 28 ? "profil compatible avec une flotte locale" : "",
     engagement >= 12 ? "signaux d’intérêt déjà détectés" : "",
+    (p.observedSample || 0) >= 5
+      ? `conversion observée du secteur : ${Math.round((p.observedSuccessRate || 0) * 100)}%`
+      : "",
     age >= 10 ? `aucun échange depuis ${Math.round(age)} jours` : "",
     (p.dataQualityScore || 0) < 60 ? "coordonnées encore incomplètes" : "",
   ].filter(Boolean);
@@ -148,6 +156,14 @@ sasvinv13004@outlook.fr`;
     reasons,
     annualPotential,
     weightedPotential: Math.round(annualPotential * (probability / 100)),
+    learningInfluence:
+      (p.observedSample || 0) >= 5
+        ? {
+            active: true,
+            sample: p.observedSample || 0,
+            rate: Math.round((p.observedSuccessRate || 0) * 100),
+          }
+        : { active: false, sample: p.observedSample || 0, rate: 0 },
     contactKit: {
       subject,
       emailBody,

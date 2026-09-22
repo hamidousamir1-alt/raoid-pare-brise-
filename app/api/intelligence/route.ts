@@ -20,7 +20,8 @@ export async function GET() {
   const denied = await guard();
   if (denied) return denied;
   try {
-    const rows = await db()`
+    const [rows, sectorStats, timeStats, feedback] = await Promise.all([
+      db()`
       select p.id,p.name,p.sector,p.status,p.score,p.fleet,p.fleet_count as "fleetCount",p.company_size as "companySize",p.access,p.insurance,p.phone,p.email,
       p.data_quality_score as "dataQualityScore",p.next_action_at as "nextActionAt",p.last_contact_at as "lastContactAt",p.updated_at as "updatedAt",
       (select count(*)::int from call_logs c where c.prospect_id=p.id) as calls,
@@ -41,9 +42,29 @@ export async function GET() {
         and (x.status='dismissed' or (x.status='snoozed' and x.snoozed_until>now()))
         and x.updated_at=(select max(y.updated_at) from commercial_recommendation_overrides y where y.prospect_id=p.id)
       )
-    `;
+    `,
+      db()`select coalesce(nullif(p.sector,''),'Non renseigné') as sector,count(c.id)::int as sample,count(c.id) filter(where c.outcome in ('interested','appointment'))::int as positive from prospects p join call_logs c on c.prospect_id=p.id where p.deleted_at is null group by 1 having count(c.id)>0 order by positive::float/nullif(count(c.id),0) desc,sample desc limit 12`,
+      db()`select extract(hour from started_at)::int as hour,count(*)::int as sample,count(*) filter(where outcome in ('interested','appointment'))::int as positive from call_logs group by 1 having count(*)>0 order by positive::float/nullif(count(*),0) desc,sample desc limit 6`,
+      db()`select count(*)::int as total,count(*) filter(where status='accepted')::int as accepted,count(*) filter(where status='dismissed')::int as dismissed from commercial_recommendation_overrides`,
+    ]);
+    const sectorMap = new Map(
+      (sectorStats as any[]).map((item) => [
+        item.sector,
+        {
+          sample: Number(item.sample),
+          rate: Number(item.positive) / Math.max(1, Number(item.sample)),
+        },
+      ]),
+    );
     const recommendations = rows
-      .map((row: any) => recommendationFor(row))
+      .map((row: any) => {
+        const observed = sectorMap.get(row.sector || "Non renseigné");
+        return recommendationFor({
+          ...row,
+          observedSample: observed?.sample || 0,
+          observedSuccessRate: observed?.rate || 0,
+        });
+      })
       .sort((a, b) => b.priority - a.priority)
       .slice(0, 30);
     const summary = {
@@ -59,8 +80,44 @@ export async function GET() {
           (recommendations.length || 1),
       ),
     };
+    const bestSectors = (sectorStats as any[]).map((item) => ({
+      sector: item.sector,
+      sample: Number(item.sample),
+      rate: Math.round(
+        (Number(item.positive) / Math.max(1, Number(item.sample))) * 100,
+      ),
+      reliable: Number(item.sample) >= 5,
+    }));
+    const bestTimes = (timeStats as any[]).map((item) => ({
+      hour: Number(item.hour),
+      sample: Number(item.sample),
+      rate: Math.round(
+        (Number(item.positive) / Math.max(1, Number(item.sample))) * 100,
+      ),
+      reliable: Number(item.sample) >= 5,
+    }));
+    const f = (feedback as any[])[0] || {
+      total: 0,
+      accepted: 0,
+      dismissed: 0,
+    };
+    const learning = {
+      activeSectorModels: bestSectors.filter((item) => item.reliable).length,
+      activeTimeModels: bestTimes.filter((item) => item.reliable).length,
+      bestSectors,
+      bestTimes,
+      feedback: {
+        total: Number(f.total),
+        accepted: Number(f.accepted),
+        dismissed: Number(f.dismissed),
+        acceptanceRate: Number(f.total)
+          ? Math.round((Number(f.accepted) / Number(f.total)) * 100)
+          : 0,
+      },
+      minimumSample: 5,
+    };
     return NextResponse.json(
-      { recommendations, summary },
+      { recommendations, summary, learning },
       { headers: noStore },
     );
   } catch {
