@@ -91,6 +91,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (path === "/login") return <>{children}</>;
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    localStorage.removeItem("rapid-crm:offline-visits:v1");
+    localStorage.removeItem("rapid-crm:route-cache:v1");
     location.href = "/login";
   }
   return (

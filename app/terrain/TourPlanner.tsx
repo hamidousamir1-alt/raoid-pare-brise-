@@ -1,5 +1,12 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import {
+  cacheRoute,
+  cachedRoute,
+  queueVisit,
+  queuedVisits,
+  removeQueuedVisit,
+} from "../../lib/offline-field";
 type Prospect = {
   id: string;
   name: string;
@@ -110,6 +117,8 @@ export default function TourPlanner() {
     [bookedProspects, setBookedProspects] = useState<string[]>([]),
     [busy, setBusy] = useState("");
   const [recommendation, setRecommendation] = useState("");
+  const [online, setOnline] = useState(true);
+  const [offlinePending, setOfflinePending] = useState(0);
   useEffect(() => {
     let live = true;
     (async () => {
@@ -121,8 +130,15 @@ export default function TourPlanner() {
         }
         if (!r.ok) return;
         const d = await r.json();
-        if (d.mode === "postgresql" && live) setRaw(d.items || []);
-      } catch {}
+        if (d.mode === "postgresql" && live) {
+          const items = d.items || [];
+          setRaw(items);
+          cacheRoute(items.slice(0, 100));
+        }
+      } catch {
+        const cached = cachedRoute<Prospect>();
+        if (live && cached.items.length) setRaw(cached.items);
+      }
     })();
     (async () => {
       try {
@@ -146,6 +162,44 @@ export default function TourPlanner() {
     })();
     return () => {
       live = false;
+    };
+  }, []);
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    setOfflinePending(queuedVisits().length);
+    async function synchronize() {
+      if (!navigator.onLine) return;
+      for (const visit of queuedVisits()) {
+        try {
+          const response = await fetch("/api/terrain", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(visit),
+          });
+          if (!response.ok) continue;
+          removeQueuedVisit(visit.id);
+        } catch {
+          break;
+        }
+      }
+      const left = queuedVisits().length;
+      setOfflinePending(left);
+      if (!left)
+        setRecommendation(
+          "Tous les comptes rendus hors connexion ont été synchronisés.",
+        );
+    }
+    const onOnline = () => {
+      setOnline(true);
+      synchronize();
+    };
+    const onOffline = () => setOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    synchronize();
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
     };
   }, []);
   const eligible = useMemo(
@@ -238,17 +292,29 @@ export default function TourPlanner() {
           : "Note rapide facultative pour préparer la prochaine action",
         "",
       ) || "";
+    const payload = {
+      prospectId: s.id,
+      prospectName: s.name,
+      outcome: value,
+      note,
+      latitude: position?.latitude,
+      longitude: position?.longitude,
+    };
+    if (!navigator.onLine) {
+      queueVisit(payload);
+      setOfflinePending(queuedVisits().length);
+      setDone((old) => [...old, s.id]);
+      setRecommendation(
+        `${s.name} : compte rendu conservé sur ce téléphone, en attente de synchronisation.`,
+      );
+      setBusy("");
+      return;
+    }
     try {
       const r = await fetch("/api/terrain", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prospectId: s.id,
-          outcome: value,
-          note,
-          latitude: position?.latitude,
-          longitude: position?.longitude,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!r.ok) throw new Error();
       const result = await r.json();
@@ -259,7 +325,12 @@ export default function TourPlanner() {
           : `${s.name} : compte rendu enregistré.`,
       );
     } catch {
-      alert("La visite n’a pas pu être enregistrée.");
+      queueVisit(payload);
+      setOfflinePending(queuedVisits().length);
+      setDone((old) => [...old, s.id]);
+      setRecommendation(
+        `${s.name} : réseau indisponible, compte rendu mis en attente sécurisée sur cet appareil.`,
+      );
     } finally {
       setBusy("");
     }
@@ -321,7 +392,10 @@ export default function TourPlanner() {
           </select>
         </label>
         <button onClick={locate}>⌖ Ma position</button>
-        <span className="auto">Gratuit · aucune API payante</span>
+        <span className="auto">
+          {online ? "● En ligne" : "○ Hors connexion"}
+          {offlinePending > 0 ? ` · ${offlinePending} à synchroniser` : ""}
+        </span>
       </div>
       {recommendation && (
         <div className="panel" role="status">
