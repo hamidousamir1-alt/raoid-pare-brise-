@@ -108,6 +108,33 @@ export function recommendationFor(p: IntelligenceProspect) {
         ? "Matinée, avant 11h30"
         : "Envoi entre 8h00 et 10h00";
   const annualPotential = rawAnnualPotential(p);
+  const visited = (p.visits || 0) > 0;
+  const sectorBenefit = /BTP|Maintenance|Nettoyage|Paysage/i.test(
+    p.sector || "",
+  )
+    ? "limiter l’immobilisation de vos véhicules d’intervention"
+    : /Transport|Livraison|Taxi|Ambulance/i.test(p.sector || "")
+      ? "maintenir vos véhicules disponibles et réduire leur temps d’immobilisation"
+      : "simplifier la prise en charge de vos véhicules";
+  const introduction = visited
+    ? "Je me permets de revenir vers vous à la suite de mon passage dans vos locaux."
+    : "Je me permets de vous contacter au nom de Rapid Pare-Brise Marseille.";
+  const subject = visited
+    ? `Suite à mon passage – solution vitrage pour ${p.name}`
+    : `Solution vitrage pour les véhicules de ${p.name}`;
+  const emailBody = `Bonjour,
+
+${introduction}
+
+Nous accompagnons les entreprises pour le remplacement de pare-brise et de tout vitrage automobile. Notre objectif est de ${sectorBenefit}, avec une prise en charge simple et adaptée à votre organisation.
+
+Je souhaiterais échanger quelques minutes avec vous afin de comprendre vos besoins et, si cela est pertinent, convenir d’un rendez-vous.
+
+Bien cordialement,
+
+Samir – Rapid Pare-Brise Marseille
+sasvinv13004@outlook.fr`;
+  const callOpening = `Bonjour, Samir de Rapid Pare-Brise Marseille. ${visited ? "Je vous appelle à la suite de mon passage dans vos locaux. " : ""}Nous accompagnons les entreprises pour le remplacement de pare-brise et de tout vitrage sur leurs véhicules. Je souhaitais identifier la personne qui gère votre parc automobile et convenir d’un rendez-vous si notre solution peut vous être utile.`;
   return {
     prospectId: p.id,
     prospect: p.name,
@@ -121,6 +148,14 @@ export function recommendationFor(p: IntelligenceProspect) {
     reasons,
     annualPotential,
     weightedPotential: Math.round(annualPotential * (probability / 100)),
+    contactKit: {
+      subject,
+      emailBody,
+      callOpening,
+      canEmail: Boolean(p.email),
+      canCall: Boolean(p.phone),
+      context: visited ? "Après passage physique" : "Premier contact",
+    },
     components: {
       fit: clamp(fit, 0, 35),
       engagement: clamp(engagement, 0, 38),
