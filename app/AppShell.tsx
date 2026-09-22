@@ -35,6 +35,7 @@ const nav = [
   ["/messages", "✉", "Messages"],
   ["/performance", "↗", "Performance"],
   ["/reglages", "⚙", "Réglages"],
+  ["/administration", "◈", "Administration"],
 ] as const;
 const mobileNav = [
   ["/", "⌂", "Aujourd’hui"],

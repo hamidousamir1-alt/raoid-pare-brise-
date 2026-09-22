@@ -278,6 +278,8 @@ CREATE TABLE IF NOT EXISTS performance_goals(
 CREATE TABLE IF NOT EXISTS automation_settings(setting_key text PRIMARY KEY,label text NOT NULL,category text NOT NULL,enabled boolean NOT NULL DEFAULT true,numeric_value integer,unit text,description text,updated_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS automation_audit(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),setting_key text NOT NULL REFERENCES automation_settings(setting_key) ON DELETE RESTRICT,previous_value jsonb NOT NULL,new_value jsonb NOT NULL,changed_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS automation_audit_recent_idx ON automation_audit(changed_at DESC);
+CREATE TABLE IF NOT EXISTS crm_backups(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),label text NOT NULL,payload jsonb NOT NULL,record_count integer NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS crm_backups_recent_idx ON crm_backups(created_at DESC);
 INSERT INTO automation_settings(setting_key,label,category,enabled,numeric_value,unit,description) VALUES
 ('mailing_sequence','Séquence e-mail automatique','Mailing',true,14,'jours','Relances J0, J+3, J+7 et J+14 avec arrêt sur réponse.'),
 ('offer_follow_up','Relance après une offre','Commercial',true,3,'jours','Crée une relance après l’envoi d’une offre.'),
