@@ -26,6 +26,8 @@ ALTER TABLE prospects ADD COLUMN IF NOT EXISTS best_contact_time text;
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS decision_process text;
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS objections text;
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS data_quality_score integer NOT NULL DEFAULT 0 CHECK(data_quality_score BETWEEN 0 AND 100);
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS merged_into_id uuid REFERENCES prospects(id) ON DELETE RESTRICT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS data_verified_at timestamptz;
 CREATE INDEX IF NOT EXISTS prospects_status_idx ON prospects(status) WHERE deleted_at IS NULL;CREATE INDEX IF NOT EXISTS prospects_zone_idx ON prospects(zone) WHERE deleted_at IS NULL;CREATE INDEX IF NOT EXISTS prospects_updated_idx ON prospects(updated_at DESC) WHERE deleted_at IS NULL;
 CREATE TABLE IF NOT EXISTS prospect_events(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,event_type text NOT NULL,payload jsonb NOT NULL DEFAULT '{}'::jsonb,created_at timestamptz NOT NULL DEFAULT now());CREATE INDEX IF NOT EXISTS prospect_events_prospect_idx ON prospect_events(prospect_id,created_at DESC);
 CREATE TABLE IF NOT EXISTS prospect_contacts(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,name text NOT NULL,role text,email text,phone text,is_decision_maker boolean NOT NULL DEFAULT false,is_primary boolean NOT NULL DEFAULT false,preferred_channel text NOT NULL DEFAULT 'Téléphone',notes text,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),deleted_at timestamptz);
@@ -163,6 +165,17 @@ CREATE INDEX IF NOT EXISTS appointments_calendar_idx ON appointments(starts_at,s
 CREATE INDEX IF NOT EXISTS appointments_prospect_idx ON appointments(prospect_id,starts_at DESC);
 ALTER TABLE sales_tasks ADD COLUMN IF NOT EXISTS appointment_id uuid REFERENCES appointments(id) ON DELETE RESTRICT;
 CREATE UNIQUE INDEX IF NOT EXISTS sales_tasks_appointment_type_idx ON sales_tasks(appointment_id,task_type) WHERE appointment_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS prospect_merges(
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  master_prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,
+  merged_prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,
+  master_snapshot jsonb NOT NULL,
+  merged_snapshot jsonb NOT NULL,
+  merged_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(merged_prospect_id)
+);
+CREATE INDEX IF NOT EXISTS prospect_merges_master_idx ON prospect_merges(master_prospect_id,merged_at DESC);
 
 CREATE TABLE IF NOT EXISTS field_visits(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,outcome text NOT NULL CHECK(outcome IN ('visited','absent','callback','not_interested','not_found','closed')),note text,latitude double precision,longitude double precision,visited_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS field_visits_prospect_idx ON field_visits(prospect_id,visited_at DESC);

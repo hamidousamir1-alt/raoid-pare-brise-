@@ -29,6 +29,7 @@ const nav = [
   ["/terrain", "⌖", "Terrain"],
   ["/partenaires", "♢", "Partenaires"],
   ["/documents", "▤", "Documents"],
+  ["/donnees", "◉", "Données"],
   ["/messages", "✉", "Messages"],
   ["/performance", "↗", "Performance"],
 ] as const;
