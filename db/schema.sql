@@ -267,6 +267,15 @@ CREATE INDEX IF NOT EXISTS service_cases_status_idx ON service_cases(status,sche
 ALTER TABLE sales_tasks ADD COLUMN IF NOT EXISTS service_case_id uuid REFERENCES service_cases(id) ON DELETE RESTRICT;
 CREATE UNIQUE INDEX IF NOT EXISTS sales_tasks_service_case_type_idx ON sales_tasks(service_case_id,task_type) WHERE service_case_id IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS performance_goals(
+  period_month date PRIMARY KEY,
+  revenue_target numeric(12,2) NOT NULL DEFAULT 0 CHECK(revenue_target >= 0),
+  calls_target integer NOT NULL DEFAULT 0 CHECK(calls_target >= 0),
+  appointments_target integer NOT NULL DEFAULT 0 CHECK(appointments_target >= 0),
+  partners_target integer NOT NULL DEFAULT 0 CHECK(partners_target >= 0),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS field_visits(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,outcome text NOT NULL CHECK(outcome IN ('visited','absent','callback','not_interested','not_found','closed')),note text,latitude double precision,longitude double precision,visited_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS field_visits_prospect_idx ON field_visits(prospect_id,visited_at DESC);
 
