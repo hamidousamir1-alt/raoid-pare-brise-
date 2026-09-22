@@ -246,6 +246,15 @@ export default function PipelineBoard() {
                       >
                         ☎
                       </Link>
+                      {(d.stage === "RDV" || d.stage === "Offres") && (
+                        <Link
+                          className="offerDeal"
+                          href={`/offres?prospect=${d.id}`}
+                          aria-label={`Créer une offre pour ${d.name}`}
+                        >
+                          ▧
+                        </Link>
+                      )}
                       <button
                         disabled={i === 0 || blocked}
                         onClick={() => move(d, -1)}

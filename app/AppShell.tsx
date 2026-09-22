@@ -25,6 +25,7 @@ const nav = [
   ["/actions", "✓", "Actions"],
   ["/agenda", "◷", "Agenda"],
   ["/appels", "☎", "Appels"],
+  ["/offres", "▧", "Offres"],
   ["/prospection", "◎", "Prospection"],
   ["/pipeline", "◇", "Pipeline"],
   ["/terrain", "⌖", "Terrain"],

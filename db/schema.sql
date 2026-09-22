@@ -198,6 +198,28 @@ CREATE INDEX IF NOT EXISTS call_logs_recent_idx ON call_logs(started_at DESC);
 ALTER TABLE sales_tasks ADD COLUMN IF NOT EXISTS call_id uuid REFERENCES call_logs(id) ON DELETE RESTRICT;
 CREATE UNIQUE INDEX IF NOT EXISTS sales_tasks_call_type_idx ON sales_tasks(call_id,task_type) WHERE call_id IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS commercial_offers(
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,
+  title text NOT NULL,
+  offer_type text NOT NULL DEFAULT 'partnership' CHECK(offer_type IN ('partnership','service','quote')),
+  status text NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','sent','viewed','accepted','refused','expired')),
+  amount numeric(12,2) NOT NULL DEFAULT 0 CHECK(amount >= 0),
+  valid_until date,
+  summary text,
+  terms text,
+  sent_at timestamptz,
+  viewed_at timestamptz,
+  decided_at timestamptz,
+  refusal_reason text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS commercial_offers_prospect_idx ON commercial_offers(prospect_id,created_at DESC);
+CREATE INDEX IF NOT EXISTS commercial_offers_status_idx ON commercial_offers(status,valid_until);
+ALTER TABLE sales_tasks ADD COLUMN IF NOT EXISTS offer_id uuid REFERENCES commercial_offers(id) ON DELETE RESTRICT;
+CREATE UNIQUE INDEX IF NOT EXISTS sales_tasks_offer_type_idx ON sales_tasks(offer_id,task_type) WHERE offer_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS field_visits(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,outcome text NOT NULL CHECK(outcome IN ('visited','absent','callback','not_interested','not_found','closed')),note text,latitude double precision,longitude double precision,visited_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS field_visits_prospect_idx ON field_visits(prospect_id,visited_at DESC);
 

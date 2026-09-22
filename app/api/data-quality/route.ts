@@ -209,6 +209,8 @@ export async function POST(req: NextRequest) {
       await sql`update field_visits set prospect_id=${masterId} where prospect_id=${duplicateId}`;
       await sql`update sales_tasks set prospect_id=${masterId},updated_at=now() where prospect_id=${duplicateId}`;
       await sql`update appointments set prospect_id=${masterId},updated_at=now() where prospect_id=${duplicateId}`;
+      await sql`update call_logs set prospect_id=${masterId} where prospect_id=${duplicateId}`;
+      await sql`update commercial_offers set prospect_id=${masterId},updated_at=now() where prospect_id=${duplicateId}`;
       await sql`update prospect_events set prospect_id=${masterId} where prospect_id=${duplicateId}`;
       await sql`update prospects set deleted_at=now(),merged_into_id=${masterId},updated_at=now() where id=${duplicateId}`;
       await sql`insert into prospect_events(prospect_id,event_type,payload) values(${masterId},'prospects_merged',${sql.json({ mergedProspectId: duplicateId, mergedName: duplicate.name })})`;
