@@ -275,6 +275,17 @@ CREATE TABLE IF NOT EXISTS performance_goals(
   partners_target integer NOT NULL DEFAULT 0 CHECK(partners_target >= 0),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS automation_settings(setting_key text PRIMARY KEY,label text NOT NULL,category text NOT NULL,enabled boolean NOT NULL DEFAULT true,numeric_value integer,unit text,description text,updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS automation_audit(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),setting_key text NOT NULL REFERENCES automation_settings(setting_key) ON DELETE RESTRICT,previous_value jsonb NOT NULL,new_value jsonb NOT NULL,changed_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS automation_audit_recent_idx ON automation_audit(changed_at DESC);
+INSERT INTO automation_settings(setting_key,label,category,enabled,numeric_value,unit,description) VALUES
+('mailing_sequence','Séquence e-mail automatique','Mailing',true,14,'jours','Relances J0, J+3, J+7 et J+14 avec arrêt sur réponse.'),
+('offer_follow_up','Relance après une offre','Commercial',true,3,'jours','Crée une relance après l’envoi d’une offre.'),
+('appointment_day_reminder','Rappel rendez-vous la veille','Agenda',true,1,'jour','Crée la confirmation avant le rendez-vous.'),
+('appointment_hour_reminder','Rappel avant rendez-vous','Agenda',true,1,'heure','Alerte avant le début du rendez-vous.'),
+('satisfaction_follow_up','Demande de satisfaction','Partenaires',true,2,'jours','Programme le retour après une intervention.'),
+('stale_opportunity','Alerte dossier inactif','Pilotage',true,14,'jours','Signale les opportunités sans mouvement.'),
+('data_review','Contrôle des données','Données',true,90,'jours','Signale les fiches à vérifier.') ON CONFLICT(setting_key) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS field_visits(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,outcome text NOT NULL CHECK(outcome IN ('visited','absent','callback','not_interested','not_found','closed')),note text,latitude double precision,longitude double precision,visited_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS field_visits_prospect_idx ON field_visits(prospect_id,visited_at DESC);

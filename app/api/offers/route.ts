@@ -121,9 +121,15 @@ export async function POST(req: NextRequest) {
       if (!changed.length) return [];
       const offer = changed[0];
       if (status === "sent") {
-        const due = new Date(Date.now() + 3 * 86400000).toISOString();
+        const settings =
+          await sql`select enabled,numeric_value as days from automation_settings where setting_key='offer_follow_up'`;
+        const enabled = settings[0]?.enabled ?? true;
+        const due = new Date(
+          Date.now() + Number(settings[0]?.days ?? 3) * 86400000,
+        ).toISOString();
         await sql`update prospects set status='Offre',next_action='Relancer l’offre commerciale',next_action_at=${due},updated_at=now() where id=${offer.prospectId}`;
-        await sql`insert into sales_tasks(prospect_id,offer_id,task_type,title,priority,due_at,source) values(${offer.prospectId},${offerId},'offer_follow_up','Relancer l’offre commerciale',88,${due},'offer') on conflict(offer_id,task_type) where offer_id is not null do nothing`;
+        if (enabled)
+          await sql`insert into sales_tasks(prospect_id,offer_id,task_type,title,priority,due_at,source) values(${offer.prospectId},${offerId},'offer_follow_up','Relancer l’offre commerciale',88,${due},'offer') on conflict(offer_id,task_type) where offer_id is not null do nothing`;
       }
       if (status === "viewed")
         await sql`update prospects set status='Offre',next_action='Contacter le prospect après consultation',next_action_at=now()+interval '1 day',updated_at=now() where id=${offer.prospectId}`;

@@ -176,11 +176,18 @@ export async function POST(req: NextRequest) {
         if (!before.length) return [];
         const changed =
           await sql`update service_cases set status=${status},scheduled_at=case when ${status}='scheduled' then ${scheduledAt?.toISOString() || null} else scheduled_at end,completed_at=case when ${status}='completed' then coalesce(completed_at,now()) else completed_at end,amount=${amount},updated_at=now() where id=${caseId} returning prospect_id as "prospectId"`;
-        if (status === "completed" && before[0].status !== "completed")
-          await sql`update prospects set generated_revenue=generated_revenue+${amount},next_action='Demander un retour de satisfaction',next_action_at=now()+interval '2 days',updated_at=now() where id=${before[0].prospectId}`;
         if (status === "completed") {
+          const settings =
+            await sql`select enabled,numeric_value as days from automation_settings where setting_key='satisfaction_follow_up'`;
+          const enabled = settings[0]?.enabled ?? true;
+          const satisfactionDue = new Date(
+            Date.now() + Number(settings[0]?.days ?? 2) * 86400000,
+          ).toISOString();
+          if (before[0].status !== "completed")
+            await sql`update prospects set generated_revenue=generated_revenue+${amount},next_action=${enabled ? "Demander un retour de satisfaction" : "Suivre le partenaire"},next_action_at=${enabled ? satisfactionDue : null},updated_at=now() where id=${before[0].prospectId}`;
           await sql`update sales_tasks set status='completed',completed_at=now(),updated_at=now() where service_case_id=${caseId} and status='open'`;
-          await sql`insert into sales_tasks(prospect_id,service_case_id,task_type,title,priority,due_at,source) values(${before[0].prospectId},${caseId},'satisfaction','Demander un retour de satisfaction',75,now()+interval '2 days','partner') on conflict(service_case_id,task_type) where service_case_id is not null do nothing`;
+          if (enabled)
+            await sql`insert into sales_tasks(prospect_id,service_case_id,task_type,title,priority,due_at,source) values(${before[0].prospectId},${caseId},'satisfaction','Demander un retour de satisfaction',75,${satisfactionDue},'partner') on conflict(service_case_id,task_type) where service_case_id is not null do nothing`;
         }
         await sql`insert into prospect_events(prospect_id,event_type,payload) values(${before[0].prospectId},'service_case_status_changed',${sql.json({ serviceCaseId: caseId, status, amount })})`;
         return changed;
