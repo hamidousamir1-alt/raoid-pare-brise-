@@ -15,6 +15,18 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "no-store" };
+function bodyToHtml(body: string) {
+  const escape = (value: string) =>
+    value
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
+  return body
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${escape(paragraph).replaceAll("\n", "<br>")}</p>`)
+    .join("");
+}
 const replyActions: Record<
   ReplyCategory,
   { title: string; next: string; status?: string; doNotContact?: boolean }
@@ -90,7 +102,7 @@ export async function GET() {
       await Promise.all([
         db()`select count(*) filter(where status='scheduled')::int as scheduled,count(*) filter(where status='sent')::int as sent,count(*) filter(where status='replied')::int as replied,count(*) filter(where status='failed')::int as failed from email_messages`,
         db()`select id,name,email,contact_name as "contactName",contact_role as "contactRole",email_status as "emailStatus",do_not_contact as "doNotContact",status from prospects where deleted_at is null order by updated_at desc`,
-        db()`select id,name,subject,body_text as "bodyText",active,updated_at as "updatedAt" from email_templates where deleted_at is null order by updated_at desc`,
+        db()`select id,name,subject,body_text as "bodyText",active,scenario_key as "scenarioKey",category,situation,recommended_delay_days as "recommendedDelayDays",requires_field_visit as "requiresFieldVisit",tone,updated_at as "updatedAt" from email_templates where deleted_at is null order by category,name`,
         db()`select s.id,s.name,s.description,s.active,s.stop_on_reply as "stopOnReply",count(st.id)::int as steps from email_sequences s left join email_sequence_steps st on st.sequence_id=s.id where s.deleted_at is null group by s.id order by s.updated_at desc`,
         db()`select m.id,p.name as prospect,m.recipient_email as recipient,m.subject,m.status,m.scheduled_at as "scheduledAt",m.sent_at as "sentAt",m.error_message as error from email_messages m join prospects p on p.id=m.prospect_id order by m.created_at desc limit 50`,
         db()`select t.id,t.title,t.task_type as "taskType",t.priority,t.due_at as "dueAt",p.id as "prospectId",p.name as prospect,m.reply_category as "replyCategory" from sales_tasks t join prospects p on p.id=t.prospect_id left join email_messages m on m.id=t.message_id where t.status='open' order by t.due_at asc nulls first,t.priority desc limit 30`,
@@ -189,21 +201,45 @@ export async function POST(req: NextRequest) {
     if (x.action === "create_template") {
       const name = String(x.name || "").trim(),
         subject = String(x.subject || "").trim(),
-        body = String(x.body || "").trim();
+        body = String(x.body || "").trim(),
+        category = String(x.category || "Personnalisé").trim(),
+        situation = String(x.situation || "").trim(),
+        tone = String(x.tone || "Professionnel").trim(),
+        delay = Math.min(365, Math.max(0, Number(x.recommendedDelayDays) || 0));
       if (!name || !subject || !body)
         return NextResponse.json(
           { error: "missing_fields" },
           { status: 400, headers: noStore },
         );
       const rows =
-        await db()`insert into email_templates(name,subject,body_html,body_text) values(${name},${subject},${body
-          .split("\n")
-          .map((line: string) => `<p>${line}</p>`)
-          .join("")},${body}) returning id`;
+        await db()`insert into email_templates(name,subject,body_html,body_text,category,situation,recommended_delay_days,tone) values(${name},${subject},${bodyToHtml(body)},${body},${category},${situation},${delay},${tone}) returning id`;
       return NextResponse.json(
         { ok: true, id: rows[0].id },
         { status: 201, headers: noStore },
       );
+    }
+    if (x.action === "update_template") {
+      const id = String(x.templateId || ""),
+        name = String(x.name || "").trim(),
+        subject = String(x.subject || "").trim(),
+        body = String(x.bodyText || "").trim(),
+        category = String(x.category || "Personnalisé").trim(),
+        situation = String(x.situation || "").trim(),
+        tone = String(x.tone || "Professionnel").trim(),
+        delay = Math.min(365, Math.max(0, Number(x.recommendedDelayDays) || 0));
+      if (!id || !name || !subject || !body)
+        return NextResponse.json(
+          { error: "missing_fields" },
+          { status: 400, headers: noStore },
+        );
+      const rows =
+        await db()`update email_templates set name=${name},subject=${subject},body_html=${bodyToHtml(body)},body_text=${body},category=${category},situation=${situation},recommended_delay_days=${delay},tone=${tone},updated_at=now() where id=${id} and deleted_at is null returning id`;
+      return rows.length
+        ? NextResponse.json({ ok: true }, { headers: noStore })
+        : NextResponse.json(
+            { error: "not_found" },
+            { status: 404, headers: noStore },
+          );
     }
     if (x.action === "enroll") {
       const prospectId = String(x.prospectId || ""),

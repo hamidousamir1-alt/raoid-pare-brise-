@@ -10,7 +10,19 @@ type Prospect = {
   doNotContact: boolean;
   status: string;
 };
-type Template = { id: string; name: string; subject: string; bodyText: string };
+type Template = {
+  id: string;
+  name: string;
+  subject: string;
+  bodyText: string;
+  scenarioKey: string | null;
+  category: string;
+  situation: string;
+  recommendedDelayDays: number;
+  requiresFieldVisit: boolean;
+  tone: string;
+  active: boolean;
+};
 type Sequence = {
   id: string;
   name: string;
@@ -90,6 +102,8 @@ export default function Messages() {
     [when, setWhen] = useState(""),
     [busy, setBusy] = useState(false),
     [editing, setEditing] = useState<Prospect | null>(null),
+    [editingTemplate, setEditingTemplate] = useState<Template | null>(null),
+    [templateCategory, setTemplateCategory] = useState("Toutes"),
     [replyChoices, setReplyChoices] = useState<Record<string, string>>({});
   async function load() {
     setError("");
@@ -114,6 +128,22 @@ export default function Messages() {
   const selected = useMemo(
     () => data?.prospects.find((p) => p.id === prospectId),
     [data, prospectId],
+  );
+  const templateCategories = useMemo(
+    () => [
+      "Toutes",
+      ...Array.from(new Set(data?.templates.map((t) => t.category) || [])),
+    ],
+    [data],
+  );
+  const visibleTemplates = useMemo(
+    () =>
+      data?.templates.filter(
+        (template) =>
+          templateCategory === "Toutes" ||
+          template.category === templateCategory,
+      ) || [],
+    [data, templateCategory],
   );
   async function action(payload: unknown) {
     setBusy(true);
@@ -170,6 +200,24 @@ export default function Messages() {
   async function enroll() {
     await action({ action: "enroll", prospectId, sequenceId });
   }
+  async function saveTemplate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingTemplate) return;
+    if (
+      await action({
+        action: "update_template",
+        templateId: editingTemplate.id,
+        name: editingTemplate.name,
+        subject: editingTemplate.subject,
+        bodyText: editingTemplate.bodyText,
+        category: editingTemplate.category,
+        situation: editingTemplate.situation,
+        recommendedDelayDays: editingTemplate.recommendedDelayDays,
+        tone: editingTemplate.tone,
+      })
+    )
+      setEditingTemplate(null);
+  }
   async function closeTask(taskId: string, dismiss = false) {
     await action({
       action: dismiss ? "dismiss_task" : "complete_task",
@@ -181,7 +229,7 @@ export default function Messages() {
   }
   return (
     <main className="workspace mailingPage">
-      <style>{`.mailingPage{display:grid;gap:18px}.mailHead{display:flex;justify-content:space-between;align-items:flex-start;gap:24px}.mailHead h1{margin:3px 0 8px}.mailState{padding:10px 13px;border-radius:10px;background:#fff4e5;color:#8a4b08;font-size:12px}.mailState.ready{background:#eaf8ef;color:#176637}.mailKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.mailKpis article,.mailPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:20px}.mailKpis small{display:block;color:#788396;font-size:10px;margin-bottom:8px}.mailKpis strong{font-size:27px}.mailGrid,.actionCenter{display:grid;grid-template-columns:minmax(300px,.8fr) minmax(420px,1.2fr);gap:18px}.mailPanel h2{margin:0 0 16px}.mailForm{display:grid;gap:14px}.mailForm label{font-size:11px;color:#566174}.mailForm select,.mailForm input{display:block;width:100%;margin-top:7px;padding:11px;border:1px solid #dce1e9;border-radius:9px;background:white}.mailForm button{justify-self:start}.contactLine{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid #edf0f4}.contactLine:first-of-type{border-top:0}.contactLine small{display:block;color:#7b8698;margin-top:4px}.contactLine button{font-size:11px}.history{display:grid;gap:9px}.history article{display:grid;grid-template-columns:1fr auto;gap:8px;padding:12px;border:1px solid #edf0f4;border-radius:10px}.history small{color:#7b8698}.history mark{align-self:start}.smartTask,.replyCard{padding:14px 0;border-top:1px solid #edf0f4}.smartTask:first-of-type,.replyCard:first-of-type{border-top:0}.smartTask header,.replyCard header{display:flex;justify-content:space-between;gap:10px}.smartTask p,.replyCard p{margin:7px 0;color:#657186;font-size:12px;line-height:1.5}.taskButtons,.replyReview{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.taskButtons button,.replyReview button{font-size:10px}.replyReview select{flex:1;min-width:180px;padding:9px;border:1px solid #dce1e9;border-radius:9px;background:#fff}.confidence{white-space:nowrap;color:#a45b00;font-size:10px}.reviewed{color:#18713c}.emptyAction{padding:18px;border-radius:12px;background:#f4f8f5;color:#28633d;font-size:12px}.mailModal{position:fixed;inset:0;background:#10182766;display:grid;place-items:center;z-index:30}.mailModal form{width:min(92vw,520px);background:#fff;border-radius:18px;padding:24px;display:grid;gap:14px}.mailModal input{width:100%;padding:11px;border:1px solid #dce1e9;border-radius:9px}.check{display:flex;gap:8px;align-items:center}.mailActions{display:flex;justify-content:flex-end;gap:10px}@media(max-width:900px){.mailGrid,.actionCenter{grid-template-columns:1fr}.mailKpis{grid-template-columns:repeat(2,1fr)}.mailHead{flex-wrap:wrap}}`}</style>
+      <style>{`.mailingPage{display:grid;gap:18px}.mailHead{display:flex;justify-content:space-between;align-items:flex-start;gap:24px}.mailHead h1{margin:3px 0 8px}.mailState{padding:10px 13px;border-radius:10px;background:#fff4e5;color:#8a4b08;font-size:12px}.mailState.ready{background:#eaf8ef;color:#176637}.mailKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.mailKpis article,.mailPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:20px}.mailKpis small{display:block;color:#788396;font-size:10px;margin-bottom:8px}.mailKpis strong{font-size:27px}.mailGrid,.actionCenter{display:grid;grid-template-columns:minmax(300px,.8fr) minmax(420px,1.2fr);gap:18px}.mailPanel h2{margin:0 0 16px}.mailForm{display:grid;gap:14px}.mailForm label{font-size:11px;color:#566174}.mailForm select,.mailForm input,.templateToolbar select{display:block;width:100%;margin-top:7px;padding:11px;border:1px solid #dce1e9;border-radius:9px;background:white}.mailForm button{justify-self:start}.contactLine{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid #edf0f4}.contactLine:first-of-type{border-top:0}.contactLine small{display:block;color:#7b8698;margin-top:4px}.contactLine button{font-size:11px}.history{display:grid;gap:9px}.history article{display:grid;grid-template-columns:1fr auto;gap:8px;padding:12px;border:1px solid #edf0f4;border-radius:10px}.history small{color:#7b8698}.history mark{align-self:start}.smartTask,.replyCard{padding:14px 0;border-top:1px solid #edf0f4}.smartTask:first-of-type,.replyCard:first-of-type{border-top:0}.smartTask header,.replyCard header,.templateHead{display:flex;justify-content:space-between;gap:10px}.smartTask p,.replyCard p{margin:7px 0;color:#657186;font-size:12px;line-height:1.5}.taskButtons,.replyReview,.templateActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.taskButtons button,.replyReview button,.templateActions button{font-size:10px}.replyReview select{flex:1;min-width:180px;padding:9px;border:1px solid #dce1e9;border-radius:9px;background:#fff}.confidence{white-space:nowrap;color:#a45b00;font-size:10px}.reviewed{color:#18713c}.emptyAction{padding:18px;border-radius:12px;background:#f4f8f5;color:#28633d;font-size:12px}.templateToolbar{width:min(100%,270px);margin-bottom:16px}.templateGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.templateCard{border:1px solid #e7eaf0;border-radius:13px;padding:15px;display:grid;gap:9px}.templateCard p{margin:0;color:#657186;font-size:12px;line-height:1.45}.templateMeta{display:flex;gap:6px;flex-wrap:wrap}.templateMeta span{font-size:9px;padding:5px 7px;background:#f3f5f8;border-radius:99px;color:#566174}.mailModal{position:fixed;inset:0;background:#10182766;display:grid;place-items:center;z-index:30;padding:15px}.mailModal form{width:min(92vw,620px);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;padding:24px;display:grid;gap:14px}.mailModal input,.mailModal select,.mailModal textarea{width:100%;padding:11px;border:1px solid #dce1e9;border-radius:9px;background:#fff}.mailModal textarea{min-height:230px;resize:vertical}.check{display:flex;gap:8px;align-items:center}.mailActions{display:flex;justify-content:flex-end;gap:10px}@media(max-width:1000px){.templateGrid{grid-template-columns:repeat(2,1fr)}}@media(max-width:900px){.mailGrid,.actionCenter{grid-template-columns:1fr}.mailKpis{grid-template-columns:repeat(2,1fr)}.mailHead{flex-wrap:wrap}}@media(max-width:620px){.templateGrid{grid-template-columns:1fr}.mailPanel{padding:16px}.mailKpis{gap:9px}.mailKpis article{padding:14px}}`}</style>
       <header className="mailHead">
         <div>
           <p className="eyebrow">MAILING & RELANCES</p>
@@ -435,6 +483,50 @@ export default function Messages() {
             </div>
           </section>
           <section className="mailPanel">
+            <p className="eyebrow">BIBLIOTHÈQUE COMMERCIALE</p>
+            <h2>Scénarios d’e-mails</h2>
+            <label className="templateToolbar">
+              Filtrer par situation
+              <select
+                value={templateCategory}
+                onChange={(e) => setTemplateCategory(e.target.value)}
+              >
+                {templateCategories.map((category) => (
+                  <option key={category}>{category}</option>
+                ))}
+              </select>
+            </label>
+            <div className="templateGrid">
+              {visibleTemplates.map((template) => (
+                <article className="templateCard" key={template.id}>
+                  <div className="templateHead">
+                    <b>{template.name}</b>
+                    <mark>{template.category}</mark>
+                  </div>
+                  <p>{template.situation || template.subject}</p>
+                  <div className="templateMeta">
+                    <span>{template.tone}</span>
+                    <span>J+{template.recommendedDelayDays}</span>
+                    {template.requiresFieldVisit ? (
+                      <span>Après passage</span>
+                    ) : null}
+                  </div>
+                  <div className="templateActions">
+                    <button
+                      className="primary"
+                      onClick={() => setTemplateId(template.id)}
+                    >
+                      Utiliser
+                    </button>
+                    <button onClick={() => setEditingTemplate({ ...template })}>
+                      Modifier
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+          <section className="mailPanel">
             <h2>Historique récent</h2>
             <div className="history">
               {data.recent.length ? (
@@ -501,6 +593,115 @@ export default function Messages() {
             </label>
             <div className="mailActions">
               <button type="button" onClick={() => setEditing(null)}>
+                Annuler
+              </button>
+              <button className="primary" disabled={busy}>
+                Enregistrer
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+      {editingTemplate && (
+        <div className="mailModal" onMouseDown={() => setEditingTemplate(null)}>
+          <form
+            onSubmit={saveTemplate}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h2>Modifier le scénario</h2>
+            <label>
+              Nom
+              <input
+                required
+                value={editingTemplate.name}
+                onChange={(e) =>
+                  setEditingTemplate({
+                    ...editingTemplate,
+                    name: e.target.value,
+                  })
+                }
+              />
+            </label>
+            <label>
+              Catégorie
+              <input
+                required
+                value={editingTemplate.category}
+                onChange={(e) =>
+                  setEditingTemplate({
+                    ...editingTemplate,
+                    category: e.target.value,
+                  })
+                }
+              />
+            </label>
+            <label>
+              Situation d’utilisation
+              <input
+                value={editingTemplate.situation}
+                onChange={(e) =>
+                  setEditingTemplate({
+                    ...editingTemplate,
+                    situation: e.target.value,
+                  })
+                }
+              />
+            </label>
+            <label>
+              Objet
+              <input
+                required
+                value={editingTemplate.subject}
+                onChange={(e) =>
+                  setEditingTemplate({
+                    ...editingTemplate,
+                    subject: e.target.value,
+                  })
+                }
+              />
+            </label>
+            <label>
+              Message
+              <textarea
+                required
+                value={editingTemplate.bodyText}
+                onChange={(e) =>
+                  setEditingTemplate({
+                    ...editingTemplate,
+                    bodyText: e.target.value,
+                  })
+                }
+              />
+            </label>
+            <label>
+              Délai conseillé en jours
+              <input
+                type="number"
+                min="0"
+                max="365"
+                value={editingTemplate.recommendedDelayDays}
+                onChange={(e) =>
+                  setEditingTemplate({
+                    ...editingTemplate,
+                    recommendedDelayDays: Number(e.target.value),
+                  })
+                }
+              />
+            </label>
+            <label>
+              Ton
+              <input
+                value={editingTemplate.tone}
+                onChange={(e) =>
+                  setEditingTemplate({
+                    ...editingTemplate,
+                    tone: e.target.value,
+                  })
+                }
+              />
+            </label>
+            <div className="mailActions">
+              <button type="button" onClick={() => setEditingTemplate(null)}>
                 Annuler
               </button>
               <button className="primary" disabled={busy}>
