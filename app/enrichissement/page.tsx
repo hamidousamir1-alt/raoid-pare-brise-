@@ -17,6 +17,21 @@ const targets = [
   ["fleetCount", "Nombre de véhicules"],
   ["notes", "Notes"],
   ["zone", "Zone"],
+  ["companySize", "Taille d’entreprise"],
+  ["verificationStatus", "Statut de vérification"],
+  ["verificationConfidence", "Confiance de vérification"],
+  ["officialName", "Raison sociale officielle"],
+  ["officialAddress", "Adresse officielle"],
+  ["officialActivity", "Activité officielle"],
+  ["naf", "Code NAF"],
+  ["employeeBand", "Tranche d’effectif"],
+  ["siren", "SIREN"],
+  ["activeEstablishment", "Établissement actif"],
+  ["duplicateStatus", "Statut doublon"],
+  ["recommendedAction", "Action recommandée"],
+  ["source", "Source"],
+  ["latitude", "Latitude"],
+  ["longitude", "Longitude"],
 ] as const;
 type ImportRow = Record<string, string | number | undefined> & {
   duplicateId?: string;
@@ -76,6 +91,7 @@ export default function EnrichmentPage() {
     [map, setMap] = useState<Record<string, string>>({}),
     [file, setFile] = useState<File | null>(null),
     [duplicateMode, setDuplicateMode] = useState("skip"),
+    [confidenceMode, setConfidenceMode] = useState("safe"),
     [batches, setBatches] = useState<Batch[]>([]),
     [busy, setBusy] = useState(""),
     [message, setMessage] = useState("");
@@ -94,6 +110,21 @@ export default function EnrichmentPage() {
   const rows = useMemo(
     () => (preview ? mappedRows(preview, map) : []),
     [preview, map],
+  );
+  const safeRowsCount = useMemo(
+    () =>
+      rows.filter((row) => {
+        const status = clean(row.verificationStatus).toLowerCase();
+        const duplicate = clean(row.duplicateStatus).toLowerCase();
+        return (
+          Boolean(clean(row.name)) &&
+          (status === "vérifiée" ||
+            status === "verifiee" ||
+            status === "probable") &&
+          !duplicate.includes("doublon")
+        );
+      }).length,
+    [rows],
   );
   async function inspect() {
     if (!file) return;
@@ -118,6 +149,18 @@ export default function EnrichmentPage() {
   }
   async function commit() {
     if (!preview || !rows.some((row) => clean(row.name))) return;
+    const importRows = rows.filter((row) => {
+      if (!clean(row.name)) return false;
+      if (confidenceMode === "all") return true;
+      const status = clean(row.verificationStatus).toLowerCase();
+      const duplicate = clean(row.duplicateStatus).toLowerCase();
+      return (
+        (status === "vérifiée" ||
+          status === "verifiee" ||
+          status === "probable") &&
+        !duplicate.includes("doublon")
+      );
+    });
     setBusy("commit");
     const r = await fetch("/api/imports", {
       method: "POST",
@@ -125,7 +168,7 @@ export default function EnrichmentPage() {
       body: JSON.stringify({
         action: "commit",
         fileName: preview.fileName,
-        rows,
+        rows: importRows,
         duplicateMode,
       }),
     });
@@ -452,6 +495,7 @@ export default function EnrichmentPage() {
                       <th>Ville</th>
                       <th>Téléphone</th>
                       <th>E-mail</th>
+                      <th>Vérification</th>
                       <th>État</th>
                     </tr>
                   </thead>
@@ -464,6 +508,12 @@ export default function EnrichmentPage() {
                         <td>{clean(row.city)}</td>
                         <td>{clean(row.phone)}</td>
                         <td>{clean(row.email)}</td>
+                        <td>
+                          {clean(row.verificationStatus) || "Non renseignée"}
+                          {clean(row.verificationConfidence)
+                            ? ` · ${clean(row.verificationConfidence)}%`
+                            : ""}
+                        </td>
                         <td className={row.duplicateId ? "duplicate" : ""}>
                           {row.duplicateId
                             ? `Doublon : ${row.duplicateName}`
@@ -477,6 +527,23 @@ export default function EnrichmentPage() {
                 </table>
               </div>
               <div className="actionsRow">
+                <label>
+                  Fiabilité :{" "}
+                  <select
+                    value={confidenceMode}
+                    onChange={(e) => setConfidenceMode(e.target.value)}
+                  >
+                    <option value="safe">
+                      Vérifiées et probables, sans doublon
+                    </option>
+                    <option value="all">
+                      Toutes les lignes, y compris à revoir
+                    </option>
+                  </select>
+                </label>
+                {confidenceMode === "safe" ? (
+                  <small>{safeRowsCount} lignes sûres seront importées</small>
+                ) : null}
                 <label>
                   Doublons :{" "}
                   <select
@@ -493,7 +560,9 @@ export default function EnrichmentPage() {
                   className="primary"
                   onClick={commit}
                   disabled={
-                    busy === "commit" || !rows.some((r) => clean(r.name))
+                    busy === "commit" ||
+                    !rows.some((r) => clean(r.name)) ||
+                    (confidenceMode === "safe" && safeRowsCount === 0)
                   }
                 >
                   {busy === "commit" ? "Import…" : "Valider l’import"}
