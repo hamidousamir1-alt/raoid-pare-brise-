@@ -316,7 +316,7 @@ CREATE INDEX IF NOT EXISTS import_batches_recent_idx ON import_batches(created_a
 CREATE TABLE IF NOT EXISTS import_batch_rows(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),batch_id uuid NOT NULL REFERENCES import_batches(id) ON DELETE RESTRICT,prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,operation text NOT NULL CHECK(operation IN ('created','updated')),before_data jsonb,created_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS import_batch_rows_batch_idx ON import_batch_rows(batch_id);
 INSERT INTO automation_settings(setting_key,label,category,enabled,numeric_value,unit,description) VALUES
-('mailing_sequence','Séquence e-mail automatique','Mailing',true,14,'jours','Relances J0, J+3, J+7 et J+14 avec arrêt sur réponse.'),
+('mailing_sequence','Séquence e-mail automatique','Mailing',true,35,'jours','Présence marketing J0, J+7, J+14, J+21 et J+35 avec arrêt sur réponse.'),
 ('offer_follow_up','Relance après une offre','Commercial',true,3,'jours','Crée une relance après l’envoi d’une offre.'),
 ('appointment_day_reminder','Rappel rendez-vous la veille','Agenda',true,1,'jour','Crée la confirmation avant le rendez-vous.'),
 ('appointment_hour_reminder','Rappel avant rendez-vous','Agenda',true,1,'heure','Alerte avant le début du rendez-vous.'),

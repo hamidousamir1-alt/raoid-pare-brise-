@@ -154,11 +154,17 @@ export default function Messages() {
     }
     const d = await r.json();
     setData(d);
+    const presenceSequence = d.sequences.find((sequence: Sequence) =>
+      sequence.name.startsWith("Présence Rapid Pare-Brise"),
+    );
     if (!prospectId && d.prospects[0]) setProspectId(d.prospects[0].id);
     if (!templateId && d.templates[0]) setTemplateId(d.templates[0].id);
     if (!sequenceId && d.sequences[0]) setSequenceId(d.sequences[0].id);
-    if (!campaign.sequenceId && d.sequences[0])
-      setCampaign((old) => ({ ...old, sequenceId: d.sequences[0].id }));
+    if (!campaign.sequenceId && (presenceSequence || d.sequences[0]))
+      setCampaign((old) => ({
+        ...old,
+        sequenceId: (presenceSequence || d.sequences[0]).id,
+      }));
   }
   useEffect(() => {
     load();
@@ -518,6 +524,9 @@ export default function Messages() {
                   <li>{campaignPreview.excluded.duplicate} doublon d’adresse retiré</li>
                 </ul>
                 <p className="muted">Les partenaires gagnés et prospects perdus sont automatiquement exclus. Les relances s’arrêtent dès qu’une réponse est détectée.</p>
+                {data.sequences.find((item) => item.id === campaign.sequenceId)?.name.startsWith("Présence Rapid Pare-Brise") && (
+                  <p><b>Cadence :</b> J0 · J+7 · J+14 · J+21 · J+35, puis pause de 90 jours.</p>
+                )}
               </aside>
             </div>
           </section>

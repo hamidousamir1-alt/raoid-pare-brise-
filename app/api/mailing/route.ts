@@ -3,6 +3,7 @@ import { authConfigured, sessionValid } from "../../../lib/auth";
 import { databaseConfigured, db } from "../../../lib/db";
 import {
   MAIL_FROM,
+  marketingFrameHtml,
   renderTemplate,
   signatureHtml,
   signatureText,
@@ -16,6 +17,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "no-store" };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PRESENCE_SEQUENCE = "Présence Rapid Pare-Brise J0/J+7/J+14/J+21/J+35";
 function bodyToHtml(body: string) {
   const escape = (value: string) =>
     value
@@ -27,6 +29,63 @@ function bodyToHtml(body: string) {
     .split(/\n{2,}/)
     .map((paragraph) => `<p>${escape(paragraph).replaceAll("\n", "<br>")}</p>`)
     .join("");
+}
+function finalHtml(body: string, category?: string) {
+  const rendered = category === "Présence marketing" ? marketingFrameHtml(body) : body;
+  return rendered + signatureHtml();
+}
+async function ensurePresenceSequence() {
+  const templates = [
+    {
+      key: "presence_j0",
+      name: "Présence J0 — Découverte Rapid Pare-Brise",
+      subject: "Une solution vitrage locale pour {{entreprise}}",
+      body: "Bonjour {{contact}},\n\nRapid Pare-Brise Marseille accompagne les entreprises pour le remplacement de pare-brise et de tout vitrage automobile.\n\nNotre objectif : une prise en charge simple et moins d’immobilisation pour vos véhicules. Seriez-vous disponible pour un court échange ?",
+      delay: 0,
+    },
+    {
+      key: "presence_j7",
+      name: "Présence J+7 — Mobilité de la flotte",
+      subject: "Limiter l’immobilisation de vos véhicules",
+      body: "Bonjour {{contact}},\n\nUn vitrage endommagé peut rapidement perturber l’activité d’une flotte. Rapid Pare-Brise Marseille organise le remplacement de pare-brise et de tout vitrage pour limiter cette immobilisation.\n\nJe peux vous présenter notre fonctionnement en quelques minutes.",
+      delay: 7,
+    },
+    {
+      key: "presence_j14",
+      name: "Présence J+14 — Gestion simplifiée",
+      subject: "Simplifier vos prochaines interventions vitrage",
+      body: "Bonjour {{contact}},\n\nPour {{entreprise}}, nous pouvons simplifier le suivi des interventions : remplacement de pare-brise, vitrage latéral, lunette arrière et autres vitrages automobiles.\n\nL’idée est simple : un interlocuteur local et une organisation claire lorsque le besoin se présente.",
+      delay: 14,
+    },
+    {
+      key: "presence_j21",
+      name: "Présence J+21 — Force du réseau",
+      subject: "La proximité locale, la force d’un grand réseau",
+      body: "Bonjour {{contact}},\n\nRapid Pare-Brise s’appuie sur un grand réseau de franchisés tout en conservant un accompagnement de proximité à Marseille.\n\nNous restons disponibles pour les besoins de {{entreprise}} en remplacement de pare-brise et de tout vitrage automobile.",
+      delay: 21,
+    },
+    {
+      key: "presence_j35",
+      name: "Présence J+35 — Contact utile",
+      subject: "Gardez notre contact pour vos besoins vitrage",
+      body: "Bonjour {{contact}},\n\nJe vous laisse simplement nos coordonnées pour vos prochains besoins de remplacement de pare-brise ou de tout vitrage automobile.\n\nMême sans besoin immédiat, Rapid Pare-Brise Marseille restera disponible pour {{entreprise}}. Souhaitez-vous convenir d’un rendez-vous de présentation ?",
+      delay: 35,
+    },
+  ];
+  await db().begin(async (sql) => {
+    for (const template of templates) {
+      await sql`insert into email_templates(scenario_key,category,name,situation,subject,body_text,body_html,recommended_delay_days,tone,active) values(${template.key},'Présence marketing',${template.name},'Campagne de notoriété sans réponse',${template.subject},${template.body},${bodyToHtml(template.body)},${template.delay},'Court et attractif',true) on conflict(scenario_key) where scenario_key is not null do nothing`;
+    }
+    let sequences = await sql`select id from email_sequences where name=${PRESENCE_SEQUENCE} and deleted_at is null limit 1`;
+    if (!sequences.length)
+      sequences = await sql`insert into email_sequences(name,description,active,stop_on_reply) values(${PRESENCE_SEQUENCE},'Présence marketing espacée, arrêt immédiat sur réponse puis veille 90 jours.',true,true) returning id`;
+    for (let index = 0; index < templates.length; index += 1) {
+      const template = templates[index],
+        rows = await sql`select id from email_templates where scenario_key=${template.key} and deleted_at is null limit 1`;
+      if (rows.length)
+        await sql`insert into email_sequence_steps(sequence_id,template_id,step_order,delay_days,send_automatically) values(${sequences[0].id},${rows[0].id},${index + 1},${template.delay},true) on conflict(sequence_id,step_order) do update set template_id=excluded.template_id,delay_days=excluded.delay_days,send_automatically=true`;
+    }
+  });
 }
 const replyActions: Record<
   ReplyCategory,
@@ -99,6 +158,7 @@ export async function GET() {
   const denied = await guard();
   if (denied) return denied;
   try {
+    await ensurePresenceSequence();
     const [stats, prospects, templates, sequences, recent, tasks, replies] =
       await Promise.all([
         db()`select count(*) filter(where status='scheduled')::int as scheduled,count(*) filter(where status='sent')::int as sent,count(*) filter(where status='replied')::int as replied,count(*) filter(where status='failed')::int as failed from email_messages`,
@@ -263,7 +323,7 @@ export async function POST(req: NextRequest) {
           { status: 409, headers: noStore },
         );
       const steps =
-        await db()`select st.step_order as "stepOrder",st.delay_days as "delayDays",st.template_id as "templateId",t.subject,t.body_html as "bodyHtml",t.body_text as "bodyText" from email_sequence_steps st join email_templates t on t.id=st.template_id and t.active=true and t.deleted_at is null join email_sequences s on s.id=st.sequence_id and s.active=true and s.deleted_at is null where st.sequence_id=${sequenceId} order by st.step_order`;
+        await db()`select st.step_order as "stepOrder",st.delay_days as "delayDays",st.template_id as "templateId",t.subject,t.body_html as "bodyHtml",t.body_text as "bodyText",t.category from email_sequence_steps st join email_templates t on t.id=st.template_id and t.active=true and t.deleted_at is null join email_sequences s on s.id=st.sequence_id and s.active=true and s.deleted_at is null where st.sequence_id=${sequenceId} order by st.step_order`;
       if (!steps.length)
         return NextResponse.json(
           { error: "sequence_empty" },
@@ -285,7 +345,7 @@ export async function POST(req: NextRequest) {
               Date.now() + Number(step.delayDays) * 86400_000,
             ),
             subject = renderTemplate(step.subject, data),
-            html = renderTemplate(step.bodyHtml, data) + signatureHtml(),
+            html = finalHtml(renderTemplate(step.bodyHtml, data), step.category),
             plain = renderTemplate(step.bodyText, data) + signatureText(),
             key = `sequence:${enrollment[0].id}:step:${step.stepOrder}`;
           await sql`insert into email_messages(prospect_id,enrollment_id,template_id,status,recipient_email,sender_email,sender_name,subject,body_html,body_text,scheduled_at,idempotency_key) values(${p.id},${enrollment[0].id},${step.templateId},'scheduled',${p.email},${MAIL_FROM.email},${MAIL_FROM.name},${subject},${html},${plain},${scheduledAt.toISOString()},${key})`;
@@ -307,7 +367,7 @@ export async function POST(req: NextRequest) {
         dailyLimit = Math.min(50, Math.max(1, Number(x.dailyLimit) || 20));
       if (!campaignName || !UUID.test(sequenceId) || !requestedIds.length || Number.isNaN(startsAt.getTime()))
         return NextResponse.json({ error: "invalid_campaign" }, { status: 400, headers: noStore });
-      const steps = await db()`select st.step_order as "stepOrder",st.delay_days as "delayDays",st.template_id as "templateId",t.subject,t.body_html as "bodyHtml",t.body_text as "bodyText" from email_sequence_steps st join email_templates t on t.id=st.template_id and t.active=true and t.deleted_at is null join email_sequences s on s.id=st.sequence_id and s.active=true and s.deleted_at is null where st.sequence_id=${sequenceId} order by st.step_order`;
+      const steps = await db()`select st.step_order as "stepOrder",st.delay_days as "delayDays",st.template_id as "templateId",t.subject,t.body_html as "bodyHtml",t.body_text as "bodyText",t.category from email_sequence_steps st join email_templates t on t.id=st.template_id and t.active=true and t.deleted_at is null join email_sequences s on s.id=st.sequence_id and s.active=true and s.deleted_at is null where st.sequence_id=${sequenceId} order by st.step_order`;
       if (!steps.length)
         return NextResponse.json({ error: "sequence_empty" }, { status: 409, headers: noStore });
       const prospects = await db()`select id,name,sector,email,contact_name as "contactName",do_not_contact as "doNotContact",email_status as "emailStatus",status from prospects where id in ${db()(requestedIds)} and deleted_at is null order by score desc,name`;
@@ -333,7 +393,7 @@ export async function POST(req: NextRequest) {
           for (const step of steps) {
             const scheduledAt = new Date(firstSend.getTime() + Number(step.delayDays) * 86400_000),
               subject = renderTemplate(step.subject, templateData),
-              html = renderTemplate(step.bodyHtml, templateData) + signatureHtml(),
+              html = finalHtml(renderTemplate(step.bodyHtml, templateData), step.category),
               plain = renderTemplate(step.bodyText, templateData) + signatureText(),
               key = `campaign:${enrollment[0].id}:step:${step.stepOrder}`;
             await sql`insert into email_messages(prospect_id,enrollment_id,template_id,status,recipient_email,sender_email,sender_name,subject,body_html,body_text,scheduled_at,idempotency_key) values(${p.id},${enrollment[0].id},${step.templateId},'scheduled',${p.email},${MAIL_FROM.email},${MAIL_FROM.name},${subject},${html},${plain},${scheduledAt.toISOString()},${key})`;
@@ -356,7 +416,7 @@ export async function POST(req: NextRequest) {
       const [p] =
         await db()`select id,name,sector,email,contact_name as "contactName",do_not_contact as "doNotContact" from prospects where id=${prospectId} and deleted_at is null`;
       const [t] =
-        await db()`select id,subject,body_html as "bodyHtml",body_text as "bodyText" from email_templates where id=${templateId} and active=true and deleted_at is null`;
+        await db()`select id,subject,body_html as "bodyHtml",body_text as "bodyText",category from email_templates where id=${templateId} and active=true and deleted_at is null`;
       if (!p || !t)
         return NextResponse.json(
           { error: "not_found" },
@@ -378,7 +438,7 @@ export async function POST(req: NextRequest) {
           sector: p.sector,
         },
         subject = renderTemplate(t.subject, data),
-        html = renderTemplate(t.bodyHtml, data) + signatureHtml(),
+        html = finalHtml(renderTemplate(t.bodyHtml, data), t.category),
         plain = renderTemplate(t.bodyText, data) + signatureText(),
         key = `manual:${p.id}:${t.id}:${when.toISOString()}`;
       await db()`insert into email_messages(prospect_id,template_id,status,recipient_email,sender_email,sender_name,subject,body_html,body_text,scheduled_at,idempotency_key) values(${p.id},${t.id},'scheduled',${p.email},${MAIL_FROM.email},${MAIL_FROM.name},${subject},${html},${plain},${when.toISOString()},${key}) on conflict(idempotency_key) do nothing`;

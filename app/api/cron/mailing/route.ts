@@ -54,6 +54,15 @@ export async function GET(req: NextRequest) {
         failed++;
       }
     }
+    const completedPresence =
+      await db()`update email_enrollments e set status='completed',stop_reason='sequence_completed',next_send_at=null,updated_at=now() from email_sequences s where e.sequence_id=s.id and e.status='active' and s.name like 'Présence Rapid Pare-Brise%' and not exists(select 1 from email_messages m where m.enrollment_id=e.id and m.status in('scheduled','sending')) and exists(select 1 from email_messages m where m.enrollment_id=e.id and m.status in('sent','delivered')) returning e.prospect_id as "prospectId"`;
+    for (const enrollment of completedPresence) {
+      await db().begin(async (sql) => {
+        await sql`update prospects set next_action='Réévaluer une présence marketing Rapid Pare-Brise',next_action_at=now()+interval '90 days',updated_at=now() where id=${enrollment.prospectId} and do_not_contact=false`;
+        await sql`insert into sales_tasks(prospect_id,task_type,title,priority,due_at,source,generated_for_date) values(${enrollment.prospectId},'marketing_nurture','Réévaluer une nouvelle campagne de présence',45,now()+interval '90 days','mailing',(current_date+90)) on conflict(prospect_id,task_type,generated_for_date) where generated_for_date is not null do nothing`;
+        await sql`insert into prospect_events(prospect_id,event_type,payload) values(${enrollment.prospectId},'email_presence_cycle_completed',${sql.json({ pauseDays: 90 })})`;
+      });
+    }
     const inbox = await recentInbox();
     for (const item of inbox) {
       const from = item.from?.emailAddress?.address?.toLowerCase();
