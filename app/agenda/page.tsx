@@ -430,6 +430,7 @@ export default function AgendaPage() {
                 Intitulé
                 <input
                   required
+                  list="appointment-title-presets"
                   value={form.title}
                   onChange={(event) =>
                     setForm({ ...form, title: event.target.value })
@@ -483,8 +484,8 @@ export default function AgendaPage() {
               </label>
               <label className="full">
                 Objectif
-                <textarea
-                  rows={2}
+                <input
+                  list="appointment-objective-presets"
                   value={form.objective}
                   onChange={(event) =>
                     setForm({ ...form, objective: event.target.value })
@@ -493,6 +494,36 @@ export default function AgendaPage() {
               </label>
               <label className="full">
                 Préparation
+                <select
+                  value=""
+                  onChange={(event) => {
+                    if (event.target.value)
+                      setForm({
+                        ...form,
+                        preparationNotes: event.target.value,
+                      });
+                  }}
+                >
+                  <option value="">Préremplir la préparation…</option>
+                  <option value="Présenter Rapid Pare-Brise Marseille et comprendre l’organisation actuelle de la flotte.">
+                    Présentation et découverte
+                  </option>
+                  <option value="Confirmer le nombre de véhicules, leurs types, l’usage et les principaux conducteurs.">
+                    Qualification de la flotte
+                  </option>
+                  <option value="Identifier le décideur, le processus de validation et les coordonnées des interlocuteurs concernés.">
+                    Identifier la décision
+                  </option>
+                  <option value="Préparer la documentation commerciale, les avantages du partenariat et les modalités de prise en charge.">
+                    Présentation du partenariat
+                  </option>
+                  <option value="Reprendre les objections : prestataire actuel, assurance, tarif, disponibilité et immobilisation des véhicules.">
+                    Traitement des objections
+                  </option>
+                  <option value="Présenter et expliquer l’offre commerciale, puis convenir d’une date de décision.">
+                    Présentation de l’offre
+                  </option>
+                </select>
                 <textarea
                   rows={3}
                   value={form.preparationNotes}
@@ -523,6 +554,30 @@ export default function AgendaPage() {
                 Rappel une heure avant
               </label>
             </div>
+            <datalist id="appointment-title-presets">
+              {[
+                "Rendez-vous de présentation Rapid Pare-Brise",
+                "Rendez-vous de qualification de la flotte",
+                "Présentation du partenariat vitrage",
+                "Présentation de l’offre commerciale",
+                "Point de suivi du partenariat",
+                "Rendez-vous téléphonique de découverte",
+              ].map((value) => (
+                <option value={value} key={value} />
+              ))}
+            </datalist>
+            <datalist id="appointment-objective-presets">
+              {[
+                "Présenter notre service de remplacement de pare-brise et de tout vitrage automobile",
+                "Qualifier la flotte et les besoins vitrage",
+                "Identifier le décideur et le processus de validation",
+                "Présenter une solution adaptée à l’organisation de l’entreprise",
+                "Traiter les objections et convenir de la prochaine action",
+                "Présenter l’offre commerciale et obtenir une décision",
+              ].map((value) => (
+                <option value={value} key={value} />
+              ))}
+            </datalist>
             <div className="modalactions">
               <button type="button" onClick={() => setCreating(false)}>
                 Annuler

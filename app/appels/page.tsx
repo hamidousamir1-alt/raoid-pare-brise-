@@ -280,6 +280,41 @@ export default function CallsPage() {
           </label>
           <label>
             Compte rendu
+            <select
+              value=""
+              onChange={(event) => {
+                if (event.target.value) setNotes(event.target.value);
+              }}
+            >
+              <option value="">Préremplir le compte rendu…</option>
+              <option value="Interlocuteur absent, nouvel appel nécessaire.">
+                Interlocuteur absent
+              </option>
+              <option value="Le décideur n’était pas disponible. Identifier son nom et son créneau de disponibilité.">
+                Décideur indisponible
+              </option>
+              <option value="Le contact souhaite recevoir une présentation de nos prestations de remplacement de pare-brise et de tout vitrage automobile.">
+                Documentation demandée
+              </option>
+              <option value="L’entreprise possède une flotte de véhicules. Le nombre et les types de véhicules restent à confirmer.">
+                Flotte à qualifier
+              </option>
+              <option value="L’entreprise travaille déjà avec un prestataire vitrage.">
+                Prestataire existant
+              </option>
+              <option value="La gestion du vitrage passe actuellement par l’assurance.">
+                Gestion par assurance
+              </option>
+              <option value="Le contact est intéressé et accepte de convenir d’un rendez-vous.">
+                Intéressé par un rendez-vous
+              </option>
+              <option value="Aucun besoin immédiat. Le contact accepte une relance ultérieure.">
+                À rappeler ultérieurement
+              </option>
+              <option value="L’entreprise ne souhaite pas être recontactée.">
+                Refus définitif
+              </option>
+            </select>
             <textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
@@ -314,6 +349,7 @@ export default function CallsPage() {
               <label>
                 Prochaine action
                 <input
+                  list="call-next-actions"
                   required={outcome !== "not_interested"}
                   value={nextAction}
                   onChange={(event) => setNextAction(event.target.value)}
@@ -348,6 +384,22 @@ export default function CallsPage() {
           <button className="primary" disabled={busy || !prospectId}>
             {busy ? "Enregistrement…" : "Enregistrer l’appel et la suite"}
           </button>
+          <datalist id="call-next-actions">
+            {[
+              "Rappeler l’entreprise",
+              "Rappeler au créneau convenu",
+              "Identifier le bon interlocuteur",
+              "Envoyer un récapitulatif",
+              "Envoyer les informations demandées",
+              "Envoyer un e-mail de présentation",
+              "Appeler pour convenir d’un rendez-vous",
+              "Préparer le rendez-vous",
+              "Relancer après l’envoi de la documentation",
+              "Aucune relance",
+            ].map((value) => (
+              <option value={value} key={value} />
+            ))}
+          </datalist>
         </form>
         <section className="callPanel">
           <p className="eyebrow">HISTORIQUE</p>
