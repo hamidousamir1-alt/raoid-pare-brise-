@@ -68,6 +68,19 @@ type Reply = {
   confidence: number;
   reviewStatus: string;
 };
+type CampaignRun = {
+  id: string;
+  name: string;
+  startedAt: string;
+  recipients: number;
+  active: number;
+  paused: number;
+  replied: number;
+  completed: number;
+  cancelled: number;
+  sent: number;
+  scheduled: number;
+};
 type Data = {
   configured: boolean;
   sender: { name: string; email: string };
@@ -78,6 +91,7 @@ type Data = {
   recent: Message[];
   tasks: Task[];
   replies: Reply[];
+  campaignRuns: CampaignRun[];
 };
 type CampaignForm = {
   name: string;
@@ -327,9 +341,12 @@ export default function Messages() {
         `${result.enrolled || 0} entreprise(s) programmée(s)${result.skipped ? ` · ${result.skipped} déjà inscrite(s) ou exclue(s)` : ""}.`,
       );
   }
+  async function controlCampaign(campaignId: string, operation: "pause" | "resume" | "cancel") {
+    await action({ action: "campaign_control", campaignId, operation });
+  }
   return (
     <main className="workspace mailingPage">
-      <style>{`.mailingPage{display:grid;gap:18px}.mailHead{display:flex;justify-content:space-between;align-items:flex-start;gap:24px}.mailHead h1{margin:3px 0 8px}.mailState{padding:10px 13px;border-radius:10px;background:#fff4e5;color:#8a4b08;font-size:12px}.mailState.ready{background:#eaf8ef;color:#176637}.mailKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.mailKpis article,.mailPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:20px}.mailKpis small{display:block;color:#788396;font-size:10px;margin-bottom:8px}.mailKpis strong{font-size:27px}.mailGrid,.actionCenter{display:grid;grid-template-columns:minmax(300px,.8fr) minmax(420px,1.2fr);gap:18px}.mailPanel h2{margin:0 0 16px}.mailForm{display:grid;gap:14px}.mailForm label{font-size:11px;color:#566174}.mailForm select,.mailForm input,.templateToolbar select{display:block;width:100%;margin-top:7px;padding:11px;border:1px solid #dce1e9;border-radius:9px;background:white}.mailForm button{justify-self:start}.campaignBuilder{display:grid;grid-template-columns:1.2fr .8fr;gap:18px}.campaignFilters{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.campaignFilters .wide{grid-column:span 2}.campaignPreview{padding:18px;border-radius:14px;background:#f5f7f9}.campaignPreview strong{display:block;font-size:34px}.campaignPreview ul{padding-left:18px;color:#647185;font-size:11px;line-height:1.7}.campaignResult{padding:11px;border-radius:9px;background:#eaf8ef;color:#176637}.contactLine{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid #edf0f4}.contactLine:first-of-type{border-top:0}.contactLine small{display:block;color:#7b8698;margin-top:4px}.contactLine button{font-size:11px}.history{display:grid;gap:9px}.history article{display:grid;grid-template-columns:1fr auto;gap:8px;padding:12px;border:1px solid #edf0f4;border-radius:10px}.history small{color:#7b8698}.history mark{align-self:start}.smartTask,.replyCard{padding:14px 0;border-top:1px solid #edf0f4}.smartTask:first-of-type,.replyCard:first-of-type{border-top:0}.smartTask header,.replyCard header,.templateHead{display:flex;justify-content:space-between;gap:10px}.smartTask p,.replyCard p{margin:7px 0;color:#657186;font-size:12px;line-height:1.5}.taskButtons,.replyReview,.templateActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.taskButtons button,.replyReview button,.templateActions button{font-size:10px}.replyReview select{flex:1;min-width:180px;padding:9px;border:1px solid #dce1e9;border-radius:9px;background:#fff}.confidence{white-space:nowrap;color:#a45b00;font-size:10px}.reviewed{color:#18713c}.emptyAction{padding:18px;border-radius:12px;background:#f4f8f5;color:#28633d;font-size:12px}.templateToolbar{width:min(100%,270px);margin-bottom:16px}.templateGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.templateCard{border:1px solid #e7eaf0;border-radius:13px;padding:15px;display:grid;gap:9px}.templateCard p{margin:0;color:#657186;font-size:12px;line-height:1.45}.templateMeta{display:flex;gap:6px;flex-wrap:wrap}.templateMeta span{font-size:9px;padding:5px 7px;background:#f3f5f8;border-radius:99px;color:#566174}.mailModal{position:fixed;inset:0;background:#10182766;display:grid;place-items:center;z-index:30;padding:15px}.mailModal form{width:min(92vw,620px);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;padding:24px;display:grid;gap:14px}.mailModal input,.mailModal select,.mailModal textarea{width:100%;padding:11px;border:1px solid #dce1e9;border-radius:9px;background:#fff}.mailModal textarea{min-height:230px;resize:vertical}.check{display:flex;gap:8px;align-items:center}.mailActions{display:flex;justify-content:flex-end;gap:10px}@media(max-width:1000px){.templateGrid{grid-template-columns:repeat(2,1fr)}.campaignBuilder{grid-template-columns:1fr}}@media(max-width:900px){.mailGrid,.actionCenter{grid-template-columns:1fr}.mailKpis{grid-template-columns:repeat(2,1fr)}.mailHead{flex-wrap:wrap}}@media(max-width:620px){.templateGrid{grid-template-columns:1fr}.mailPanel{padding:16px}.mailKpis{gap:9px}.mailKpis article{padding:14px}.campaignFilters{grid-template-columns:1fr}.campaignFilters .wide{grid-column:auto}}`}</style>
+      <style>{`.mailingPage{display:grid;gap:18px}.mailHead{display:flex;justify-content:space-between;align-items:flex-start;gap:24px}.mailHead h1{margin:3px 0 8px}.mailState{padding:10px 13px;border-radius:10px;background:#fff4e5;color:#8a4b08;font-size:12px}.mailState.ready{background:#eaf8ef;color:#176637}.mailKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.mailKpis article,.mailPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:20px}.mailKpis small{display:block;color:#788396;font-size:10px;margin-bottom:8px}.mailKpis strong{font-size:27px}.mailGrid,.actionCenter{display:grid;grid-template-columns:minmax(300px,.8fr) minmax(420px,1.2fr);gap:18px}.mailPanel h2{margin:0 0 16px}.mailForm{display:grid;gap:14px}.mailForm label{font-size:11px;color:#566174}.mailForm select,.mailForm input,.templateToolbar select{display:block;width:100%;margin-top:7px;padding:11px;border:1px solid #dce1e9;border-radius:9px;background:white}.mailForm button{justify-self:start}.campaignBuilder{display:grid;grid-template-columns:1.2fr .8fr;gap:18px}.campaignFilters{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.campaignFilters .wide{grid-column:span 2}.campaignPreview{padding:18px;border-radius:14px;background:#f5f7f9}.campaignPreview strong{display:block;font-size:34px}.campaignPreview ul{padding-left:18px;color:#647185;font-size:11px;line-height:1.7}.campaignResult{padding:11px;border-radius:9px;background:#eaf8ef;color:#176637}.campaignRuns{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.campaignRun{padding:16px;border:1px solid #e7eaf0;border-radius:13px}.campaignRun header{display:flex;justify-content:space-between;gap:10px}.campaignRun p{color:#657186;font-size:11px}.campaignNumbers{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}.campaignNumbers span{font-size:10px;padding:6px 8px;background:#f3f5f8;border-radius:8px}.campaignControls{display:flex;gap:7px;flex-wrap:wrap}.campaignControls button{font-size:10px}.contactLine{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid #edf0f4}.contactLine:first-of-type{border-top:0}.contactLine small{display:block;color:#7b8698;margin-top:4px}.contactLine button{font-size:11px}.history{display:grid;gap:9px}.history article{display:grid;grid-template-columns:1fr auto;gap:8px;padding:12px;border:1px solid #edf0f4;border-radius:10px}.history small{color:#7b8698}.history mark{align-self:start}.smartTask,.replyCard{padding:14px 0;border-top:1px solid #edf0f4}.smartTask:first-of-type,.replyCard:first-of-type{border-top:0}.smartTask header,.replyCard header,.templateHead{display:flex;justify-content:space-between;gap:10px}.smartTask p,.replyCard p{margin:7px 0;color:#657186;font-size:12px;line-height:1.5}.taskButtons,.replyReview,.templateActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.taskButtons button,.replyReview button,.templateActions button{font-size:10px}.replyReview select{flex:1;min-width:180px;padding:9px;border:1px solid #dce1e9;border-radius:9px;background:#fff}.confidence{white-space:nowrap;color:#a45b00;font-size:10px}.reviewed{color:#18713c}.emptyAction{padding:18px;border-radius:12px;background:#f4f8f5;color:#28633d;font-size:12px}.templateToolbar{width:min(100%,270px);margin-bottom:16px}.templateGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.templateCard{border:1px solid #e7eaf0;border-radius:13px;padding:15px;display:grid;gap:9px}.templateCard p{margin:0;color:#657186;font-size:12px;line-height:1.45}.templateMeta{display:flex;gap:6px;flex-wrap:wrap}.templateMeta span{font-size:9px;padding:5px 7px;background:#f3f5f8;border-radius:99px;color:#566174}.mailModal{position:fixed;inset:0;background:#10182766;display:grid;place-items:center;z-index:30;padding:15px}.mailModal form{width:min(92vw,620px);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;padding:24px;display:grid;gap:14px}.mailModal input,.mailModal select,.mailModal textarea{width:100%;padding:11px;border:1px solid #dce1e9;border-radius:9px;background:#fff}.mailModal textarea{min-height:230px;resize:vertical}.check{display:flex;gap:8px;align-items:center}.mailActions{display:flex;justify-content:flex-end;gap:10px}@media(max-width:1000px){.templateGrid{grid-template-columns:repeat(2,1fr)}.campaignBuilder{grid-template-columns:1fr}}@media(max-width:900px){.mailGrid,.actionCenter{grid-template-columns:1fr}.mailKpis{grid-template-columns:repeat(2,1fr)}.mailHead{flex-wrap:wrap}.campaignRuns{grid-template-columns:1fr}}@media(max-width:620px){.templateGrid{grid-template-columns:1fr}.mailPanel{padding:16px}.mailKpis{gap:9px}.mailKpis article{padding:14px}.campaignFilters{grid-template-columns:1fr}.campaignFilters .wide{grid-column:auto}}`}</style>
       <header className="mailHead">
         <div>
           <p className="eyebrow">MAILING & RELANCES</p>
@@ -528,6 +545,24 @@ export default function Messages() {
                   <p><b>Cadence :</b> J0 · J+7 · J+14 · J+21 · J+35, puis pause de 90 jours.</p>
                 )}
               </aside>
+            </div>
+          </section>
+          <section className="mailPanel">
+            <p className="eyebrow">PILOTAGE DES CAMPAGNES</p>
+            <h2>Campagnes lancées</h2>
+            <div className="campaignRuns">
+              {data.campaignRuns.length ? data.campaignRuns.map((run) => (
+                <article className="campaignRun" key={run.id}>
+                  <header><b>{run.name}</b><mark>{run.active ? "Active" : run.paused ? "En pause" : "Terminée"}</mark></header>
+                  <p>Lancée le {new Date(run.startedAt).toLocaleDateString("fr-FR")} · {run.recipients} entreprise(s)</p>
+                  <div className="campaignNumbers"><span>{run.sent} envoyés</span><span>{run.scheduled} programmés</span><span>{run.replied} réponses</span><span>{run.completed} terminés</span></div>
+                  <div className="campaignControls">
+                    {run.active > 0 && <button disabled={busy} onClick={() => controlCampaign(run.id, "pause")}>Mettre en pause</button>}
+                    {run.paused > 0 && <button className="primary" disabled={busy} onClick={() => controlCampaign(run.id, "resume")}>Reprendre</button>}
+                    {(run.active > 0 || run.paused > 0) && <button disabled={busy} onClick={() => controlCampaign(run.id, "cancel")}>Arrêter</button>}
+                  </div>
+                </article>
+              )) : <p className="muted">Les campagnes lancées apparaîtront ici avec leur progression.</p>}
             </div>
           </section>
           <section className="mailGrid">

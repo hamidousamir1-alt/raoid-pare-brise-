@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     failed = 0;
   try {
     const due =
-      await db()`update email_messages set status='sending',updated_at=now() where id in(select id from email_messages where status='scheduled' and scheduled_at<=now() order by scheduled_at limit 20 for update skip locked) returning id,prospect_id as "prospectId",enrollment_id as "enrollmentId",recipient_email as recipient,subject,body_html as html`;
+      await db()`update email_messages set status='sending',updated_at=now() where id in(select m.id from email_messages m where m.status='scheduled' and m.scheduled_at<=now() and (m.enrollment_id is null or exists(select 1 from email_enrollments e where e.id=m.enrollment_id and e.status='active')) order by m.scheduled_at limit 20 for update skip locked) returning id,prospect_id as "prospectId",enrollment_id as "enrollmentId",recipient_email as recipient,subject,body_html as html`;
     for (const m of due) {
       try {
         const logo = `${process.env.CRM_PUBLIC_URL!.replace(/\/$/, "")}/rapid-logo.png`,

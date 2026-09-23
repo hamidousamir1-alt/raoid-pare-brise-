@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { authConfigured, sessionValid } from "../../../lib/auth";
 import { databaseConfigured, db } from "../../../lib/db";
 import {
@@ -159,7 +160,7 @@ export async function GET() {
   if (denied) return denied;
   try {
     await ensurePresenceSequence();
-    const [stats, prospects, templates, sequences, recent, tasks, replies] =
+    const [stats, prospects, templates, sequences, recent, tasks, replies, campaignRuns] =
       await Promise.all([
         db()`select count(*) filter(where status='scheduled')::int as scheduled,count(*) filter(where status='sent')::int as sent,count(*) filter(where status='replied')::int as replied,count(*) filter(where status='failed')::int as failed from email_messages`,
         db()`select id,name,email,contact_name as "contactName",contact_role as "contactRole",email_status as "emailStatus",do_not_contact as "doNotContact",status,sector,zone,company_size as "companySize",fleet_count as "fleetCount",score from prospects where deleted_at is null order by updated_at desc`,
@@ -168,6 +169,7 @@ export async function GET() {
         db()`select m.id,p.name as prospect,m.recipient_email as recipient,m.subject,m.status,m.scheduled_at as "scheduledAt",m.sent_at as "sentAt",m.error_message as error from email_messages m join prospects p on p.id=m.prospect_id order by m.created_at desc limit 50`,
         db()`select t.id,t.title,t.task_type as "taskType",t.priority,t.due_at as "dueAt",p.id as "prospectId",p.name as prospect,m.reply_category as "replyCategory" from sales_tasks t join prospects p on p.id=t.prospect_id left join email_messages m on m.id=t.message_id where t.status='open' order by t.due_at asc nulls first,t.priority desc limit 30`,
         db()`select m.id,m.prospect_id as "prospectId",p.name as prospect,m.sender_email as sender,m.subject,m.body_text as preview,m.replied_at as "receivedAt",m.reply_category as category,m.reply_confidence as confidence,m.review_status as "reviewStatus" from email_messages m join prospects p on p.id=m.prospect_id where m.direction='inbound' order by m.replied_at desc nulls last limit 30`,
+        db()`select coalesce(pe.payload->>'campaignId',e.id::text) as id,coalesce(max(pe.payload->>'campaignName'),max(s.name)) as name,min(e.enrolled_at) as "startedAt",count(*)::int as recipients,count(*) filter(where e.status='active')::int as active,count(*) filter(where e.status='paused')::int as paused,count(*) filter(where e.status='replied')::int as replied,count(*) filter(where e.status='completed')::int as completed,count(*) filter(where e.status='cancelled')::int as cancelled,coalesce(sum(ms.sent),0)::int as sent,coalesce(sum(ms.scheduled),0)::int as scheduled from email_enrollments e join email_sequences s on s.id=e.sequence_id join lateral(select payload from prospect_events where prospect_id=e.prospect_id and event_type='email_campaign_started' and payload->>'enrollmentId'=e.id::text order by created_at desc limit 1) pe on true left join lateral(select count(*) filter(where status in('sent','delivered','replied'))::int as sent,count(*) filter(where status='scheduled')::int as scheduled from email_messages where enrollment_id=e.id) ms on true group by coalesce(pe.payload->>'campaignId',e.id::text) order by min(e.enrolled_at) desc limit 20`,
       ]);
     return NextResponse.json(
       {
@@ -180,6 +182,7 @@ export async function GET() {
         recent,
         tasks,
         replies,
+        campaignRuns,
       },
       { headers: noStore },
     );
@@ -379,6 +382,7 @@ export async function POST(req: NextRequest) {
         seen.add(email);
         return true;
       });
+      const campaignId = randomUUID();
       let enrolled = 0,
         skipped = prospects.length - eligible.length;
       await db().begin(async (sql) => {
@@ -400,11 +404,43 @@ export async function POST(req: NextRequest) {
             await sql`insert into email_messages(prospect_id,enrollment_id,template_id,status,recipient_email,sender_email,sender_name,subject,body_html,body_text,scheduled_at,idempotency_key) values(${p.id},${enrollment[0].id},${step.templateId},'scheduled',${p.email},${MAIL_FROM.email},${MAIL_FROM.name},${subject},${html},${plain},${scheduledAt.toISOString()},${key})`;
           }
           await sql`update prospects set next_action='Campagne marketing programmée — premier message à venir',next_action_at=${firstSend.toISOString()},updated_at=now() where id=${p.id}`;
-          await sql`insert into prospect_events(prospect_id,event_type,payload) values(${p.id},'email_campaign_started',${sql.json({ campaignName, sequenceId, enrollmentId: enrollment[0].id, position: position + 1 })})`;
+          await sql`insert into prospect_events(prospect_id,event_type,payload) values(${p.id},'email_campaign_started',${sql.json({ campaignId, campaignName, sequenceId, enrollmentId: enrollment[0].id, position: position + 1 })})`;
           enrolled += 1;
         }
       });
-      return NextResponse.json({ ok: true, enrolled, skipped, willSend: microsoftConfigured() }, { status: 201, headers: noStore });
+      return NextResponse.json({ ok: true, campaignId, enrolled, skipped, willSend: microsoftConfigured() }, { status: 201, headers: noStore });
+    }
+    if (x.action === "campaign_control") {
+      const campaignId = String(x.campaignId || ""),
+        operation = String(x.operation || "");
+      if (!UUID.test(campaignId) || !["pause", "resume", "cancel"].includes(operation))
+        return NextResponse.json({ error: "invalid_campaign_control" }, { status: 400, headers: noStore });
+      const enrollments = await db()`select e.id,e.prospect_id as "prospectId",e.status from email_enrollments e join prospect_events pe on pe.prospect_id=e.prospect_id and pe.event_type='email_campaign_started' and pe.payload->>'enrollmentId'=e.id::text where pe.payload->>'campaignId'=${campaignId} or (pe.payload->>'campaignId' is null and e.id=${campaignId})`;
+      if (!enrollments.length)
+        return NextResponse.json({ error: "campaign_not_found" }, { status: 404, headers: noStore });
+      await db().begin(async (sql) => {
+        for (const enrollment of enrollments) {
+          if (operation === "pause" && enrollment.status === "active") {
+            await sql`update email_enrollments set status='paused',stop_reason='manual_pause',updated_at=now() where id=${enrollment.id}`;
+            await sql`update prospects set next_action='Campagne marketing mise en pause',next_action_at=null,updated_at=now() where id=${enrollment.prospectId}`;
+          } else if (operation === "cancel" && ["active","paused"].includes(enrollment.status)) {
+            await sql`update email_enrollments set status='cancelled',stop_reason='manual_cancel',next_send_at=null,updated_at=now() where id=${enrollment.id}`;
+            await sql`update email_messages set status='cancelled',updated_at=now() where enrollment_id=${enrollment.id} and status='scheduled'`;
+            await sql`update prospects set next_action='Décider de la suite après l’arrêt de la campagne',next_action_at=now(),updated_at=now() where id=${enrollment.prospectId}`;
+          } else if (operation === "resume" && enrollment.status === "paused") {
+            const messages = await sql`select id,scheduled_at as "scheduledAt" from email_messages where enrollment_id=${enrollment.id} and status='scheduled' order by scheduled_at`;
+            for (let index = 0; index < messages.length; index += 1) {
+              if (new Date(messages[index].scheduledAt).getTime() <= Date.now())
+                await sql`update email_messages set scheduled_at=${new Date(Date.now() + index * 5 * 60_000).toISOString()},updated_at=now() where id=${messages[index].id}`;
+            }
+            const next = await sql`select scheduled_at as "scheduledAt" from email_messages where enrollment_id=${enrollment.id} and status='scheduled' order by scheduled_at limit 1`;
+            await sql`update email_enrollments set status='active',stop_reason=null,next_send_at=${next[0]?.scheduledAt || null},updated_at=now() where id=${enrollment.id}`;
+            await sql`update prospects set next_action='Campagne réactivée — prochaine relance automatique',next_action_at=${next[0]?.scheduledAt || null},updated_at=now() where id=${enrollment.prospectId}`;
+          }
+          await sql`insert into prospect_events(prospect_id,event_type,payload) values(${enrollment.prospectId},'email_campaign_controlled',${sql.json({ campaignId, operation, enrollmentId: enrollment.id })})`;
+        }
+      });
+      return NextResponse.json({ ok: true, affected: enrollments.length }, { headers: noStore });
     }
     if (x.action === "schedule") {
       const prospectId = String(x.prospectId || ""),
