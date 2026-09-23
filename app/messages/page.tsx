@@ -9,6 +9,11 @@ type Prospect = {
   emailStatus: string;
   doNotContact: boolean;
   status: string;
+  sector: string | null;
+  zone: string | null;
+  companySize: string | null;
+  fleetCount: number | null;
+  score: number;
 };
 type Template = {
   id: string;
@@ -74,6 +79,17 @@ type Data = {
   tasks: Task[];
   replies: Reply[];
 };
+type CampaignForm = {
+  name: string;
+  zone: string;
+  sector: string;
+  companySize: string;
+  minimumFleet: string;
+  minimumScore: string;
+  sequenceId: string;
+  startsAt: string;
+  dailyLimit: string;
+};
 const labels: Record<string, string> = {
   scheduled: "Programmé",
   sent: "Envoyé",
@@ -93,6 +109,10 @@ const categoryLabels: Record<string, string> = {
   unsubscribe: "Désinscription",
   ambiguous: "À qualifier",
 };
+const localInput = (date: Date) => {
+  const copy = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return copy.toISOString().slice(0, 16);
+};
 export default function Messages() {
   const [data, setData] = useState<Data | null>(null),
     [error, setError] = useState(""),
@@ -104,7 +124,23 @@ export default function Messages() {
     [editing, setEditing] = useState<Prospect | null>(null),
     [editingTemplate, setEditingTemplate] = useState<Template | null>(null),
     [templateCategory, setTemplateCategory] = useState("Toutes"),
-    [replyChoices, setReplyChoices] = useState<Record<string, string>>({});
+    [replyChoices, setReplyChoices] = useState<Record<string, string>>({}),
+    [campaignResult, setCampaignResult] = useState("");
+  const [campaign, setCampaign] = useState<CampaignForm>(() => {
+    const start = new Date(Date.now() + 86400_000);
+    start.setHours(9, 0, 0, 0);
+    return {
+      name: "Campagne prospection entreprises",
+      zone: "Toutes",
+      sector: "Tous",
+      companySize: "Toutes",
+      minimumFleet: "0",
+      minimumScore: "0",
+      sequenceId: "",
+      startsAt: localInput(start),
+      dailyLimit: "20",
+    };
+  });
   async function load() {
     setError("");
     const r = await fetch("/api/mailing", { cache: "no-store" });
@@ -121,6 +157,8 @@ export default function Messages() {
     if (!prospectId && d.prospects[0]) setProspectId(d.prospects[0].id);
     if (!templateId && d.templates[0]) setTemplateId(d.templates[0].id);
     if (!sequenceId && d.sequences[0]) setSequenceId(d.sequences[0].id);
+    if (!campaign.sequenceId && d.sequences[0])
+      setCampaign((old) => ({ ...old, sequenceId: d.sequences[0].id }));
   }
   useEffect(() => {
     load();
@@ -145,6 +183,46 @@ export default function Messages() {
       ) || [],
     [data, templateCategory],
   );
+  const campaignOptions = useMemo(() => {
+    const prospects = data?.prospects || [];
+    return {
+      zones: [
+        "Toutes",
+        ...Array.from(new Set(prospects.map((p) => p.zone).filter(Boolean))) as string[],
+      ],
+      sectors: [
+        "Tous",
+        ...Array.from(new Set(prospects.map((p) => p.sector).filter(Boolean))) as string[],
+      ],
+      sizes: [
+        "Toutes",
+        ...Array.from(new Set(prospects.map((p) => p.companySize).filter(Boolean))) as string[],
+      ],
+    };
+  }, [data]);
+  const campaignPreview = useMemo(() => {
+    const seen = new Set<string>();
+    const excluded = { missingEmail: 0, refused: 0, invalid: 0, duplicate: 0, filter: 0 };
+    const eligible: Prospect[] = [];
+    for (const prospect of data?.prospects || []) {
+      const matches =
+        (campaign.zone === "Toutes" || prospect.zone === campaign.zone) &&
+        (campaign.sector === "Tous" || prospect.sector === campaign.sector) &&
+        (campaign.companySize === "Toutes" || prospect.companySize === campaign.companySize) &&
+        Number(prospect.fleetCount || 0) >= Number(campaign.minimumFleet || 0) &&
+        Number(prospect.score || 0) >= Number(campaign.minimumScore || 0) &&
+        !["Gagné", "Perdu"].includes(prospect.status);
+      if (!matches) { excluded.filter += 1; continue; }
+      if (prospect.doNotContact) { excluded.refused += 1; continue; }
+      if (!prospect.email) { excluded.missingEmail += 1; continue; }
+      if (["Invalide", "Rejeté", "Bounce"].includes(prospect.emailStatus)) { excluded.invalid += 1; continue; }
+      const email = prospect.email.toLowerCase();
+      if (seen.has(email)) { excluded.duplicate += 1; continue; }
+      seen.add(email);
+      eligible.push(prospect);
+    }
+    return { eligible, excluded };
+  }, [campaign, data]);
   async function action(payload: unknown) {
     setBusy(true);
     try {
@@ -156,7 +234,7 @@ export default function Messages() {
         d = await r.json();
       if (!r.ok) throw new Error(d.error || "operation_failed");
       await load();
-      return true;
+      return d;
     } catch (e) {
       const code = e instanceof Error ? e.message : "operation_failed";
       alert(
@@ -166,7 +244,7 @@ export default function Messages() {
             ? "Ajoutez d’abord une adresse e-mail au prospect."
             : "Opération impossible.",
       );
-      return false;
+      return null;
     } finally {
       setBusy(false);
     }
@@ -227,9 +305,25 @@ export default function Messages() {
   async function reviewReply(messageId: string, category: string) {
     await action({ action: "review_reply", messageId, category });
   }
+  async function launchCampaign(event: React.FormEvent) {
+    event.preventDefault();
+    setCampaignResult("");
+    const result = await action({
+      action: "bulk_enroll",
+      campaignName: campaign.name,
+      sequenceId: campaign.sequenceId,
+      prospectIds: campaignPreview.eligible.map((prospect) => prospect.id),
+      startsAt: new Date(campaign.startsAt).toISOString(),
+      dailyLimit: Number(campaign.dailyLimit),
+    });
+    if (result)
+      setCampaignResult(
+        `${result.enrolled || 0} entreprise(s) programmée(s)${result.skipped ? ` · ${result.skipped} déjà inscrite(s) ou exclue(s)` : ""}.`,
+      );
+  }
   return (
     <main className="workspace mailingPage">
-      <style>{`.mailingPage{display:grid;gap:18px}.mailHead{display:flex;justify-content:space-between;align-items:flex-start;gap:24px}.mailHead h1{margin:3px 0 8px}.mailState{padding:10px 13px;border-radius:10px;background:#fff4e5;color:#8a4b08;font-size:12px}.mailState.ready{background:#eaf8ef;color:#176637}.mailKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.mailKpis article,.mailPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:20px}.mailKpis small{display:block;color:#788396;font-size:10px;margin-bottom:8px}.mailKpis strong{font-size:27px}.mailGrid,.actionCenter{display:grid;grid-template-columns:minmax(300px,.8fr) minmax(420px,1.2fr);gap:18px}.mailPanel h2{margin:0 0 16px}.mailForm{display:grid;gap:14px}.mailForm label{font-size:11px;color:#566174}.mailForm select,.mailForm input,.templateToolbar select{display:block;width:100%;margin-top:7px;padding:11px;border:1px solid #dce1e9;border-radius:9px;background:white}.mailForm button{justify-self:start}.contactLine{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid #edf0f4}.contactLine:first-of-type{border-top:0}.contactLine small{display:block;color:#7b8698;margin-top:4px}.contactLine button{font-size:11px}.history{display:grid;gap:9px}.history article{display:grid;grid-template-columns:1fr auto;gap:8px;padding:12px;border:1px solid #edf0f4;border-radius:10px}.history small{color:#7b8698}.history mark{align-self:start}.smartTask,.replyCard{padding:14px 0;border-top:1px solid #edf0f4}.smartTask:first-of-type,.replyCard:first-of-type{border-top:0}.smartTask header,.replyCard header,.templateHead{display:flex;justify-content:space-between;gap:10px}.smartTask p,.replyCard p{margin:7px 0;color:#657186;font-size:12px;line-height:1.5}.taskButtons,.replyReview,.templateActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.taskButtons button,.replyReview button,.templateActions button{font-size:10px}.replyReview select{flex:1;min-width:180px;padding:9px;border:1px solid #dce1e9;border-radius:9px;background:#fff}.confidence{white-space:nowrap;color:#a45b00;font-size:10px}.reviewed{color:#18713c}.emptyAction{padding:18px;border-radius:12px;background:#f4f8f5;color:#28633d;font-size:12px}.templateToolbar{width:min(100%,270px);margin-bottom:16px}.templateGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.templateCard{border:1px solid #e7eaf0;border-radius:13px;padding:15px;display:grid;gap:9px}.templateCard p{margin:0;color:#657186;font-size:12px;line-height:1.45}.templateMeta{display:flex;gap:6px;flex-wrap:wrap}.templateMeta span{font-size:9px;padding:5px 7px;background:#f3f5f8;border-radius:99px;color:#566174}.mailModal{position:fixed;inset:0;background:#10182766;display:grid;place-items:center;z-index:30;padding:15px}.mailModal form{width:min(92vw,620px);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;padding:24px;display:grid;gap:14px}.mailModal input,.mailModal select,.mailModal textarea{width:100%;padding:11px;border:1px solid #dce1e9;border-radius:9px;background:#fff}.mailModal textarea{min-height:230px;resize:vertical}.check{display:flex;gap:8px;align-items:center}.mailActions{display:flex;justify-content:flex-end;gap:10px}@media(max-width:1000px){.templateGrid{grid-template-columns:repeat(2,1fr)}}@media(max-width:900px){.mailGrid,.actionCenter{grid-template-columns:1fr}.mailKpis{grid-template-columns:repeat(2,1fr)}.mailHead{flex-wrap:wrap}}@media(max-width:620px){.templateGrid{grid-template-columns:1fr}.mailPanel{padding:16px}.mailKpis{gap:9px}.mailKpis article{padding:14px}}`}</style>
+      <style>{`.mailingPage{display:grid;gap:18px}.mailHead{display:flex;justify-content:space-between;align-items:flex-start;gap:24px}.mailHead h1{margin:3px 0 8px}.mailState{padding:10px 13px;border-radius:10px;background:#fff4e5;color:#8a4b08;font-size:12px}.mailState.ready{background:#eaf8ef;color:#176637}.mailKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.mailKpis article,.mailPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:20px}.mailKpis small{display:block;color:#788396;font-size:10px;margin-bottom:8px}.mailKpis strong{font-size:27px}.mailGrid,.actionCenter{display:grid;grid-template-columns:minmax(300px,.8fr) minmax(420px,1.2fr);gap:18px}.mailPanel h2{margin:0 0 16px}.mailForm{display:grid;gap:14px}.mailForm label{font-size:11px;color:#566174}.mailForm select,.mailForm input,.templateToolbar select{display:block;width:100%;margin-top:7px;padding:11px;border:1px solid #dce1e9;border-radius:9px;background:white}.mailForm button{justify-self:start}.campaignBuilder{display:grid;grid-template-columns:1.2fr .8fr;gap:18px}.campaignFilters{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.campaignFilters .wide{grid-column:span 2}.campaignPreview{padding:18px;border-radius:14px;background:#f5f7f9}.campaignPreview strong{display:block;font-size:34px}.campaignPreview ul{padding-left:18px;color:#647185;font-size:11px;line-height:1.7}.campaignResult{padding:11px;border-radius:9px;background:#eaf8ef;color:#176637}.contactLine{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid #edf0f4}.contactLine:first-of-type{border-top:0}.contactLine small{display:block;color:#7b8698;margin-top:4px}.contactLine button{font-size:11px}.history{display:grid;gap:9px}.history article{display:grid;grid-template-columns:1fr auto;gap:8px;padding:12px;border:1px solid #edf0f4;border-radius:10px}.history small{color:#7b8698}.history mark{align-self:start}.smartTask,.replyCard{padding:14px 0;border-top:1px solid #edf0f4}.smartTask:first-of-type,.replyCard:first-of-type{border-top:0}.smartTask header,.replyCard header,.templateHead{display:flex;justify-content:space-between;gap:10px}.smartTask p,.replyCard p{margin:7px 0;color:#657186;font-size:12px;line-height:1.5}.taskButtons,.replyReview,.templateActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.taskButtons button,.replyReview button,.templateActions button{font-size:10px}.replyReview select{flex:1;min-width:180px;padding:9px;border:1px solid #dce1e9;border-radius:9px;background:#fff}.confidence{white-space:nowrap;color:#a45b00;font-size:10px}.reviewed{color:#18713c}.emptyAction{padding:18px;border-radius:12px;background:#f4f8f5;color:#28633d;font-size:12px}.templateToolbar{width:min(100%,270px);margin-bottom:16px}.templateGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.templateCard{border:1px solid #e7eaf0;border-radius:13px;padding:15px;display:grid;gap:9px}.templateCard p{margin:0;color:#657186;font-size:12px;line-height:1.45}.templateMeta{display:flex;gap:6px;flex-wrap:wrap}.templateMeta span{font-size:9px;padding:5px 7px;background:#f3f5f8;border-radius:99px;color:#566174}.mailModal{position:fixed;inset:0;background:#10182766;display:grid;place-items:center;z-index:30;padding:15px}.mailModal form{width:min(92vw,620px);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;padding:24px;display:grid;gap:14px}.mailModal input,.mailModal select,.mailModal textarea{width:100%;padding:11px;border:1px solid #dce1e9;border-radius:9px;background:#fff}.mailModal textarea{min-height:230px;resize:vertical}.check{display:flex;gap:8px;align-items:center}.mailActions{display:flex;justify-content:flex-end;gap:10px}@media(max-width:1000px){.templateGrid{grid-template-columns:repeat(2,1fr)}.campaignBuilder{grid-template-columns:1fr}}@media(max-width:900px){.mailGrid,.actionCenter{grid-template-columns:1fr}.mailKpis{grid-template-columns:repeat(2,1fr)}.mailHead{flex-wrap:wrap}}@media(max-width:620px){.templateGrid{grid-template-columns:1fr}.mailPanel{padding:16px}.mailKpis{gap:9px}.mailKpis article{padding:14px}.campaignFilters{grid-template-columns:1fr}.campaignFilters .wide{grid-column:auto}}`}</style>
       <header className="mailHead">
         <div>
           <p className="eyebrow">MAILING & RELANCES</p>
@@ -374,6 +468,57 @@ export default function Messages() {
               ) : (
                 <p className="muted">Aucune réponse reçue pour le moment.</p>
               )}
+            </div>
+          </section>
+          <section className="mailPanel">
+            <p className="eyebrow">CAMPAGNE CIBLÉE</p>
+            <h2>Créer une campagne de prospection</h2>
+            <div className="campaignBuilder">
+              <form className="mailForm" onSubmit={launchCampaign}>
+                <div className="campaignFilters">
+                  <label className="wide">Nom de la campagne
+                    <input required value={campaign.name} onChange={(event) => setCampaign({ ...campaign, name: event.target.value })} />
+                  </label>
+                  <label>Zone
+                    <select value={campaign.zone} onChange={(event) => setCampaign({ ...campaign, zone: event.target.value })}>{campaignOptions.zones.map((item) => <option key={item}>{item}</option>)}</select>
+                  </label>
+                  <label>Secteur
+                    <select value={campaign.sector} onChange={(event) => setCampaign({ ...campaign, sector: event.target.value })}>{campaignOptions.sectors.map((item) => <option key={item}>{item}</option>)}</select>
+                  </label>
+                  <label>Taille d’entreprise
+                    <select value={campaign.companySize} onChange={(event) => setCampaign({ ...campaign, companySize: event.target.value })}>{campaignOptions.sizes.map((item) => <option key={item}>{item}</option>)}</select>
+                  </label>
+                  <label>Flotte minimale
+                    <select value={campaign.minimumFleet} onChange={(event) => setCampaign({ ...campaign, minimumFleet: event.target.value })}><option value="0">Toutes</option><option value="2">2 véhicules</option><option value="5">5 véhicules</option><option value="10">10 véhicules</option><option value="20">20 véhicules</option></select>
+                  </label>
+                  <label>Score minimal
+                    <select value={campaign.minimumScore} onChange={(event) => setCampaign({ ...campaign, minimumScore: event.target.value })}><option value="0">Tous</option><option value="50">50+</option><option value="65">65+</option><option value="80">80+</option></select>
+                  </label>
+                  <label className="wide">Séquence automatique
+                    <select required value={campaign.sequenceId} onChange={(event) => setCampaign({ ...campaign, sequenceId: event.target.value })}>{data.sequences.map((item) => <option value={item.id} key={item.id}>{item.name} — {item.steps} étapes</option>)}</select>
+                  </label>
+                  <label>Début
+                    <input required type="datetime-local" value={campaign.startsAt} onChange={(event) => setCampaign({ ...campaign, startsAt: event.target.value })} />
+                  </label>
+                  <label>Maximum par jour
+                    <select value={campaign.dailyLimit} onChange={(event) => setCampaign({ ...campaign, dailyLimit: event.target.value })}><option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="50">50</option></select>
+                  </label>
+                </div>
+                <button className="primary" disabled={busy || !campaign.sequenceId || campaignPreview.eligible.length === 0}>Valider et programmer la campagne</button>
+                {campaignResult && <p className="campaignResult">✓ {campaignResult}</p>}
+              </form>
+              <aside className="campaignPreview">
+                <small>DESTINATAIRES ÉLIGIBLES</small>
+                <strong>{campaignPreview.eligible.length}</strong>
+                <p>Entreprises correspondant aux critères et autorisées à recevoir la campagne.</p>
+                <ul>
+                  <li>{campaignPreview.excluded.missingEmail} sans adresse e-mail</li>
+                  <li>{campaignPreview.excluded.refused} en « ne pas contacter »</li>
+                  <li>{campaignPreview.excluded.invalid} adresse invalide ou rejetée</li>
+                  <li>{campaignPreview.excluded.duplicate} doublon d’adresse retiré</li>
+                </ul>
+                <p className="muted">Les partenaires gagnés et prospects perdus sont automatiquement exclus. Les relances s’arrêtent dès qu’une réponse est détectée.</p>
+              </aside>
             </div>
           </section>
           <section className="mailGrid">

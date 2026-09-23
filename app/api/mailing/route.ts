@@ -15,6 +15,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "no-store" };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function bodyToHtml(body: string) {
   const escape = (value: string) =>
     value
@@ -101,7 +102,7 @@ export async function GET() {
     const [stats, prospects, templates, sequences, recent, tasks, replies] =
       await Promise.all([
         db()`select count(*) filter(where status='scheduled')::int as scheduled,count(*) filter(where status='sent')::int as sent,count(*) filter(where status='replied')::int as replied,count(*) filter(where status='failed')::int as failed from email_messages`,
-        db()`select id,name,email,contact_name as "contactName",contact_role as "contactRole",email_status as "emailStatus",do_not_contact as "doNotContact",status from prospects where deleted_at is null order by updated_at desc`,
+        db()`select id,name,email,contact_name as "contactName",contact_role as "contactRole",email_status as "emailStatus",do_not_contact as "doNotContact",status,sector,zone,company_size as "companySize",fleet_count as "fleetCount",score from prospects where deleted_at is null order by updated_at desc`,
         db()`select id,name,subject,body_text as "bodyText",active,scenario_key as "scenarioKey",category,situation,recommended_delay_days as "recommendedDelayDays",requires_field_visit as "requiresFieldVisit",tone,updated_at as "updatedAt" from email_templates where deleted_at is null order by category,name`,
         db()`select s.id,s.name,s.description,s.active,s.stop_on_reply as "stopOnReply",count(st.id)::int as steps from email_sequences s left join email_sequence_steps st on st.sequence_id=s.id where s.deleted_at is null group by s.id order by s.updated_at desc`,
         db()`select m.id,p.name as prospect,m.recipient_email as recipient,m.subject,m.status,m.scheduled_at as "scheduledAt",m.sent_at as "sentAt",m.error_message as error from email_messages m join prospects p on p.id=m.prospect_id order by m.created_at desc limit 50`,
@@ -295,6 +296,53 @@ export async function POST(req: NextRequest) {
         { ok: true, willSend: microsoftConfigured() },
         { status: 201, headers: noStore },
       );
+    }
+    if (x.action === "bulk_enroll") {
+      const campaignName = String(x.campaignName || "").trim().slice(0, 120),
+        sequenceId = String(x.sequenceId || ""),
+        requestedIds = (Array.isArray(x.prospectIds)
+          ? Array.from(new Set(x.prospectIds.map(String).filter((id: string) => UUID.test(id)))).slice(0, 500)
+          : []) as string[],
+        startsAt = new Date(String(x.startsAt || "")),
+        dailyLimit = Math.min(50, Math.max(1, Number(x.dailyLimit) || 20));
+      if (!campaignName || !UUID.test(sequenceId) || !requestedIds.length || Number.isNaN(startsAt.getTime()))
+        return NextResponse.json({ error: "invalid_campaign" }, { status: 400, headers: noStore });
+      const steps = await db()`select st.step_order as "stepOrder",st.delay_days as "delayDays",st.template_id as "templateId",t.subject,t.body_html as "bodyHtml",t.body_text as "bodyText" from email_sequence_steps st join email_templates t on t.id=st.template_id and t.active=true and t.deleted_at is null join email_sequences s on s.id=st.sequence_id and s.active=true and s.deleted_at is null where st.sequence_id=${sequenceId} order by st.step_order`;
+      if (!steps.length)
+        return NextResponse.json({ error: "sequence_empty" }, { status: 409, headers: noStore });
+      const prospects = await db()`select id,name,sector,email,contact_name as "contactName",do_not_contact as "doNotContact",email_status as "emailStatus",status from prospects where id in ${db()(requestedIds)} and deleted_at is null order by score desc,name`;
+      const seen = new Set<string>();
+      const eligible = prospects.filter((p: any) => {
+        const email = String(p.email || "").toLowerCase();
+        if (!email || p.doNotContact || ["Gagné", "Perdu"].includes(p.status) || ["Invalide", "Rejeté", "Bounce"].includes(p.emailStatus) || seen.has(email)) return false;
+        seen.add(email);
+        return true;
+      });
+      let enrolled = 0,
+        skipped = prospects.length - eligible.length;
+      await db().begin(async (sql) => {
+        for (const p of eligible) {
+          const existing = await sql`select id from email_enrollments where prospect_id=${p.id} and status='active'`;
+          if (existing.length) { skipped += 1; continue; }
+          const position = enrolled,
+            batchDays = Math.floor(position / dailyLimit),
+            minuteOffset = (position % dailyLimit) * 5,
+            firstSend = new Date(startsAt.getTime() + batchDays * 86400_000 + minuteOffset * 60_000),
+            enrollment = await sql`insert into email_enrollments(prospect_id,sequence_id,status,current_step,next_send_at) values(${p.id},${sequenceId},'active',1,${firstSend.toISOString()}) returning id`;
+          const templateData = { company: p.name, contact: p.contactName, sector: p.sector };
+          for (const step of steps) {
+            const scheduledAt = new Date(firstSend.getTime() + Number(step.delayDays) * 86400_000),
+              subject = renderTemplate(step.subject, templateData),
+              html = renderTemplate(step.bodyHtml, templateData) + signatureHtml(),
+              plain = renderTemplate(step.bodyText, templateData) + signatureText(),
+              key = `campaign:${enrollment[0].id}:step:${step.stepOrder}`;
+            await sql`insert into email_messages(prospect_id,enrollment_id,template_id,status,recipient_email,sender_email,sender_name,subject,body_html,body_text,scheduled_at,idempotency_key) values(${p.id},${enrollment[0].id},${step.templateId},'scheduled',${p.email},${MAIL_FROM.email},${MAIL_FROM.name},${subject},${html},${plain},${scheduledAt.toISOString()},${key})`;
+          }
+          await sql`insert into prospect_events(prospect_id,event_type,payload) values(${p.id},'email_campaign_started',${sql.json({ campaignName, sequenceId, enrollmentId: enrollment[0].id, position: position + 1 })})`;
+          enrolled += 1;
+        }
+      });
+      return NextResponse.json({ ok: true, enrolled, skipped, willSend: microsoftConfigured() }, { status: 201, headers: noStore });
     }
     if (x.action === "schedule") {
       const prospectId = String(x.prospectId || ""),
