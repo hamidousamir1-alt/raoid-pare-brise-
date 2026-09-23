@@ -247,7 +247,7 @@ export default function PartnerOperations() {
     <div className="partnerOps">
       <style>
         {
-          ".partnerOps{display:grid;gap:18px}.opsHead{display:flex;justify-content:space-between;align-items:flex-end;gap:18px}.opsHead h1{margin:4px 0 7px}.opsHead select{min-width:260px;padding:11px;border:1px solid #dce2e9;border-radius:10px;background:#fff}.opsKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.opsKpis article,.opsPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:19px}.opsKpis small{display:block;color:#7b8797;font-size:9px}.opsKpis b{display:block;font-size:23px;margin-top:7px}.partnerSummary{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}.partnerCard{background:linear-gradient(120deg,#07111f,#172536);color:#fff;border-radius:18px;padding:24px}.partnerCard p{color:#aeb8c5}.partnerCard .primary{margin-top:12px}.partnerNumbers{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:18px}.partnerNumbers div{padding:12px;background:rgba(255,255,255,.06);border-radius:10px}.partnerNumbers small,.partnerNumbers b{display:block}.partnerNumbers small{color:#aeb8c5;font-size:8px}.opsGrid{display:grid;grid-template-columns:.8fr 1.2fr;gap:18px}.opsForms{display:grid;gap:18px}.opsForm{display:grid;gap:10px}.opsForm label,.caseFlowForm label{display:grid;gap:5px;color:#657386;font-size:10px}.opsForm input,.opsForm select,.opsForm textarea,.caseFlowForm input,.caseFlowForm select,.caseFlowForm textarea{width:100%;padding:10px;border:1px solid #dce2e9;border-radius:9px;background:#fff}.opsForm textarea,.caseFlowForm textarea{min-height:70px}.fieldPair{display:grid;grid-template-columns:1fr 1fr;gap:9px}.vehicleTag{display:inline-flex;padding:6px 8px;margin:4px;border-radius:7px;background:#f2f5f7;font-size:10px}.caseLine{padding:15px 0;border-top:1px solid #edf0f4}.caseLine:first-of-type{border-top:0}.caseLine header{display:flex;justify-content:space-between;gap:10px}.caseLine p{color:#687587;font-size:11px;line-height:1.5}.caseStatus{padding:6px 8px;border-radius:7px;background:#eef2f6;font-size:9px;height:max-content}.caseStatus.completed{background:#e8f7ed;color:#26703f}.caseActions{display:flex;gap:7px;flex-wrap:wrap}.caseActions button{font-size:10px}.opsEmpty{padding:16px;border-radius:10px;background:#f4f8f5;color:#28633d}.caseFlowForm{display:grid;gap:13px}.caseFlowForm>.primary{min-height:46px}@media(max-width:900px){.opsKpis{grid-template-columns:1fr 1fr}.partnerSummary,.opsGrid{grid-template-columns:1fr}.opsHead{align-items:flex-start;flex-direction:column}.opsHead select{width:100%;min-width:0}.fieldPair{grid-template-columns:1fr}.caseFlowForm{width:calc(100% - 24px);max-height:92vh;overflow:auto}.caseFlowForm input,.caseFlowForm select,.caseFlowForm textarea{font-size:16px}}"
+          ".partnerOps{display:grid;gap:18px}.opsHead{display:flex;justify-content:space-between;align-items:flex-end;gap:18px}.opsHead h1{margin:4px 0 7px}.opsHead select{min-width:260px;padding:11px;border:1px solid #dce2e9;border-radius:10px;background:#fff}.opsKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.opsKpis article,.opsPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:19px}.opsKpis small{display:block;color:#7b8797;font-size:9px}.opsKpis b{display:block;font-size:23px;margin-top:7px}.partnerSummary{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}.partnerCard{background:linear-gradient(120deg,#07111f,#172536);color:#fff;border-radius:18px;padding:24px}.partnerCard p{color:#aeb8c5}.partnerCard .primary{margin-top:12px}.partnerNumbers{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:18px}.partnerNumbers div{padding:12px;background:rgba(255,255,255,.06);border-radius:10px}.partnerNumbers small,.partnerNumbers b{display:block}.partnerNumbers small{color:#aeb8c5;font-size:8px}.opsGrid{display:grid;grid-template-columns:.8fr 1.2fr;gap:18px}.opsForms{display:grid;gap:18px}.opsForm{display:grid;gap:10px}.opsForm label,.caseFlowForm label{display:grid;gap:5px;color:#657386;font-size:10px}.opsForm input,.opsForm select,.opsForm textarea,.caseFlowForm input,.caseFlowForm select,.caseFlowForm textarea{width:100%;padding:10px;border:1px solid #dce2e9;border-radius:9px;background:#fff}.opsForm textarea,.caseFlowForm textarea{min-height:70px}.fieldPair{display:grid;grid-template-columns:1fr 1fr;gap:9px}.vehicleTag{display:inline-flex;padding:6px 8px;margin:4px;border-radius:7px;background:#f2f5f7;font-size:10px}.caseLine{padding:15px 0;border-top:1px solid #edf0f4}.caseLine:first-of-type{border-top:0}.caseLine header{display:flex;justify-content:space-between;gap:10px}.caseLine p{color:#687587;font-size:11px;line-height:1.5}.caseStatus{padding:6px 8px;border-radius:7px;background:#eef2f6;font-size:9px;height:max-content}.caseStatus.completed{background:#e8f7ed;color:#26703f}.caseActions{display:flex;gap:7px;flex-wrap:wrap}.caseActions button{font-size:10px}.savedStars{color:#f5a623;font-size:15px;letter-spacing:1px}.opsEmpty{padding:16px;border-radius:10px;background:#f4f8f5;color:#28633d}.caseFlowForm{display:grid;gap:13px}.caseFlowForm>.primary{min-height:46px}.ratingField{display:grid;gap:7px}.starRating{display:flex;gap:5px}.starRating button{width:48px;height:48px;padding:0;border:1px solid #dce2e9;border-radius:10px;background:#fff;color:#c7ced8;font-size:27px;line-height:1}.starRating button.active{border-color:#f5a623;background:#fff8e8;color:#f5a623}.starRating button:focus-visible{outline:3px solid rgba(239,51,64,.22);outline-offset:2px}@media(max-width:900px){.opsKpis{grid-template-columns:1fr 1fr}.partnerSummary,.opsGrid{grid-template-columns:1fr}.opsHead{align-items:flex-start;flex-direction:column}.opsHead select{width:100%;min-width:0}.fieldPair{grid-template-columns:1fr}.caseFlowForm{width:calc(100% - 24px);max-height:92vh;overflow:auto}.caseFlowForm input,.caseFlowForm select,.caseFlowForm textarea{font-size:16px}.starRating{justify-content:space-between}.starRating button{width:18%;min-height:52px}}"
         }{" "}
       </style>
       <header className="opsHead">
@@ -518,7 +518,15 @@ export default function PartnerOperations() {
                         </button>
                       )}
                       {item.satisfaction && (
-                        <span>★ {item.satisfaction}/5</span>
+                        <span
+                          className="savedStars"
+                          aria-label={`${item.satisfaction} étoiles sur 5`}
+                          title={`${item.satisfaction}/5`}
+                        >
+                          {Array.from({ length: 5 }, (_, index) =>
+                            index < Number(item.satisfaction) ? "★" : "☆",
+                          ).join("")}
+                        </span>
                       )}
                     </div>
                   </article>
@@ -564,11 +572,25 @@ export default function PartnerOperations() {
             )}
             {caseFlow.mode === "satisfaction" && (
               <>
-                <label>Niveau de satisfaction
-                  <select value={caseFlow.rating} onChange={(event) => setCaseFlow({ ...caseFlow, rating: event.target.value })}>
-                    <option value="5">5 — Très satisfait</option><option value="4">4 — Satisfait</option><option value="3">3 — Mitigé</option><option value="2">2 — Insatisfait</option><option value="1">1 — Très insatisfait</option>
-                  </select>
-                </label>
+                <div className="ratingField">
+                  <span>Niveau de satisfaction</span>
+                  <div className="starRating" role="radiogroup" aria-label="Satisfaction du partenaire">
+                    {[1, 2, 3, 4, 5].map((rating) => (
+                      <button
+                        key={rating}
+                        type="button"
+                        role="radio"
+                        aria-checked={Number(caseFlow.rating) === rating}
+                        aria-label={`${rating} étoile${rating > 1 ? "s" : ""} sur 5`}
+                        className={rating <= Number(caseFlow.rating) ? "active" : ""}
+                        onClick={() => setCaseFlow({ ...caseFlow, rating: String(rating) })}
+                      >
+                        ★
+                      </button>
+                    ))}
+                  </div>
+                  <small>{caseFlow.rating}/5 · {Number(caseFlow.rating) >= 5 ? "Très satisfait" : Number(caseFlow.rating) === 4 ? "Satisfait" : Number(caseFlow.rating) === 3 ? "Mitigé" : "Insatisfait"}</small>
+                </div>
                 <label>Retour du partenaire
                   <select value={caseFlow.feedback} onChange={(event) => setCaseFlow({ ...caseFlow, feedback: event.target.value })}>
                     {feedbackPresets.map((item) => <option key={item}>{item}</option>)}
