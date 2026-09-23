@@ -311,6 +311,8 @@ CREATE TABLE IF NOT EXISTS automation_audit(id uuid PRIMARY KEY DEFAULT gen_rand
 CREATE INDEX IF NOT EXISTS automation_audit_recent_idx ON automation_audit(changed_at DESC);
 CREATE TABLE IF NOT EXISTS crm_backups(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),label text NOT NULL,payload jsonb NOT NULL,record_count integer NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS crm_backups_recent_idx ON crm_backups(created_at DESC);
+CREATE TABLE IF NOT EXISTS crm_system_runs(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),job_key text NOT NULL,status text NOT NULL CHECK(status IN ('success','warning','failed')),details jsonb NOT NULL DEFAULT '{}'::jsonb,started_at timestamptz NOT NULL DEFAULT now(),completed_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS crm_system_runs_job_idx ON crm_system_runs(job_key,completed_at DESC);
 CREATE TABLE IF NOT EXISTS import_batches(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),file_name text NOT NULL,status text NOT NULL DEFAULT 'completed' CHECK(status IN ('completed','rolled_back')),created_count integer NOT NULL DEFAULT 0,updated_count integer NOT NULL DEFAULT 0,skipped_count integer NOT NULL DEFAULT 0,created_at timestamptz NOT NULL DEFAULT now(),rolled_back_at timestamptz);
 CREATE INDEX IF NOT EXISTS import_batches_recent_idx ON import_batches(created_at DESC);
 CREATE TABLE IF NOT EXISTS import_batch_rows(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),batch_id uuid NOT NULL REFERENCES import_batches(id) ON DELETE RESTRICT,prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,operation text NOT NULL CHECK(operation IN ('created','updated')),before_data jsonb,created_at timestamptz NOT NULL DEFAULT now());

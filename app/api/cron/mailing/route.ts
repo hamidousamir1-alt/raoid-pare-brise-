@@ -7,6 +7,7 @@ import {
 } from "../../../../lib/mailing";
 import { recentInbox, sendMicrosoftMail } from "../../../../lib/microsoft-mail";
 import { classifyReply } from "../../../../lib/reply-intelligence";
+import { recordSystemRun } from "../../../../lib/system-health";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -27,14 +28,20 @@ export async function GET(req: NextRequest) {
   const automation =
     await db()`select enabled from automation_settings where setting_key='mailing_sequence'`;
   if (automation.length && !automation[0].enabled)
+    {
+      await recordSystemRun("mailing", "warning", { paused: true });
     return NextResponse.json({ ok: true, paused: true, sent: 0, replies: 0 });
+    }
   if (!microsoftConfigured())
+    {
+      await recordSystemRun("mailing", "warning", { configured: false });
     return NextResponse.json({
       ok: true,
       configured: false,
       sent: 0,
       replies: 0,
     });
+    }
   let sent = 0,
     replies = 0,
     failed = 0;
@@ -94,6 +101,11 @@ export async function GET(req: NextRequest) {
       });
       if (rows.length) replies++;
     }
+    await recordSystemRun("mailing", failed ? "warning" : "success", {
+      sent,
+      replies,
+      failed,
+    });
     return NextResponse.json({
       ok: true,
       configured: true,
@@ -102,6 +114,12 @@ export async function GET(req: NextRequest) {
       failed,
     });
   } catch (e) {
+    await recordSystemRun("mailing", "failed", {
+      error: e instanceof Error ? e.message : "mailing_cron_failed",
+      sent,
+      replies,
+      failed,
+    }).catch(() => undefined);
     return NextResponse.json(
       {
         error: e instanceof Error ? e.message : "mailing_cron_failed",

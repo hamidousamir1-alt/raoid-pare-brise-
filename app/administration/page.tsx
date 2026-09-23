@@ -15,6 +15,24 @@ type Data = {
   };
   audit: Array<{ subject: string; eventType: string; createdAt: string }>;
   security: Record<string, boolean>;
+  health: {
+    overall: "ok" | "warning" | "critical";
+    checks: Array<{
+      key: string;
+      label: string;
+      status: "ok" | "warning" | "critical";
+      detail: string;
+      href: string;
+    }>;
+    summary: {
+      critical: number;
+      warning: number;
+      ok: number;
+      activeCampaigns: number;
+      pausedCampaigns: number;
+      repliesWeek: number;
+    };
+  };
 };
 const eventLabels: Record<string, string> = {
   updated: "Fiche modifiée",
@@ -72,7 +90,7 @@ export default function AdministrationPage() {
     <main className="workspace adminPage">
       <style>
         {
-          ".adminPage{display:grid;gap:18px}.adminHead{display:flex;justify-content:space-between;align-items:flex-end;gap:16px}.adminHead h1{margin:4px 0 7px}.adminActions{display:flex;gap:8px}.adminActions a{text-decoration:none}.adminKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.adminKpis article,.adminPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:19px}.adminKpis small{display:block;color:#7b8797;font-size:9px}.adminKpis b{display:block;font-size:23px;margin-top:7px}.adminGrid{display:grid;grid-template-columns:.85fr 1.15fr;gap:18px}.securityLine,.backupLine,.auditLine{display:flex;justify-content:space-between;gap:12px;padding:13px 0;border-top:1px solid #edf0f4}.securityLine:first-of-type,.backupLine:first-of-type,.auditLine:first-of-type{border-top:0}.statusOk{color:#25703e;background:#e8f7ed;border-radius:8px;padding:5px 8px;font-size:9px}.statusMissing{color:#a72c35;background:#fff0f1;border-radius:8px;padding:5px 8px;font-size:9px}.adminNote{padding:13px;border-left:3px solid #ef3340;background:#fff5f5;color:#687587;border-radius:9px;font-size:11px;line-height:1.5}.auditLine small,.backupLine small{color:#7b8797}@media(max-width:900px){.adminGrid{grid-template-columns:1fr}.adminKpis{grid-template-columns:1fr 1fr}.adminHead{align-items:flex-start;flex-direction:column}.adminActions{width:100%;flex-wrap:wrap}}"
+          ".adminPage{display:grid;gap:18px}.adminHead{display:flex;justify-content:space-between;align-items:flex-end;gap:16px}.adminHead h1{margin:4px 0 7px}.adminActions{display:flex;gap:8px}.adminActions a{text-decoration:none}.healthHero{display:grid;grid-template-columns:1fr auto;align-items:center;gap:20px;padding:22px;border-radius:18px;background:linear-gradient(120deg,#07111f,#172536);color:#fff}.healthHero p{color:#aeb8c5}.healthState{padding:10px 13px;border-radius:10px;font-weight:700}.healthState.ok{background:#e8f7ed;color:#25703e}.healthState.warning{background:#fff4e5;color:#9a5a0a}.healthState.critical{background:#fff0f1;color:#a72c35}.healthGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.healthCheck{padding:14px;border:1px solid #e7eaf0;border-radius:12px}.healthCheck header{display:flex;justify-content:space-between;gap:10px}.healthCheck p{margin:7px 0;color:#687587;font-size:11px;line-height:1.45}.healthCheck a{font-size:10px}.healthDot{width:9px;height:9px;border-radius:50%;margin-top:3px;background:#287141}.healthDot.warning{background:#d98b16}.healthDot.critical{background:#d1343f}.adminKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.adminKpis article,.adminPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:19px}.adminKpis small{display:block;color:#7b8797;font-size:9px}.adminKpis b{display:block;font-size:23px;margin-top:7px}.adminGrid{display:grid;grid-template-columns:.85fr 1.15fr;gap:18px}.securityLine,.backupLine,.auditLine{display:flex;justify-content:space-between;gap:12px;padding:13px 0;border-top:1px solid #edf0f4}.securityLine:first-of-type,.backupLine:first-of-type,.auditLine:first-of-type{border-top:0}.statusOk{color:#25703e;background:#e8f7ed;border-radius:8px;padding:5px 8px;font-size:9px}.statusMissing{color:#a72c35;background:#fff0f1;border-radius:8px;padding:5px 8px;font-size:9px}.adminNote{padding:13px;border-left:3px solid #ef3340;background:#fff5f5;color:#687587;border-radius:9px;font-size:11px;line-height:1.5}.auditLine small,.backupLine small{color:#7b8797}@media(max-width:900px){.adminGrid,.healthGrid{grid-template-columns:1fr}.adminKpis{grid-template-columns:1fr 1fr}.adminHead{align-items:flex-start;flex-direction:column}.adminActions{width:100%;flex-wrap:wrap}.healthHero{grid-template-columns:1fr}}"
         }{" "}
       </style>
       <header className="adminHead">
@@ -93,6 +111,31 @@ export default function AdministrationPage() {
         </div>
       </header>
       {error && <section className="adminPanel">{error}</section>}
+      {data?.health && (
+        <>
+          <section className="healthHero">
+            <div>
+              <p className="eyebrow">SANTÉ DU CRM</p>
+              <h2>{data.health.overall === "ok" ? "Tous les systèmes sont opérationnels." : data.health.overall === "warning" ? "Quelques points nécessitent une vérification." : "Une intervention est nécessaire."}</h2>
+              <p>{data.health.summary.activeCampaigns} campagne(s) active(s) · {data.health.summary.repliesWeek} réponse(s) cette semaine</p>
+            </div>
+            <span className={`healthState ${data.health.overall}`}>{data.health.overall === "ok" ? "Système sain" : data.health.overall === "warning" ? `${data.health.summary.warning} attention(s)` : `${data.health.summary.critical} blocage(s)`}</span>
+          </section>
+          <section className="adminPanel">
+            <p className="eyebrow">DIAGNOSTIC AUTOMATIQUE</p>
+            <h2>Contrôles essentiels</h2>
+            <div className="healthGrid">
+              {data.health.checks.map((check) => (
+                <article className="healthCheck" key={check.key}>
+                  <header><b>{check.label}</b><span className={`healthDot ${check.status}`} aria-label={check.status} /></header>
+                  <p>{check.detail}</p>
+                  <a href={check.href}>Examiner →</a>
+                </article>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
       <section className="adminKpis">
         <article>
           <small>ENTREPRISES</small>
