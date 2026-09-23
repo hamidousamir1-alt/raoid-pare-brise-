@@ -36,6 +36,7 @@ type Prospect = {
 };
 type Stop = Prospect & { priority: number; distance: number; reason: string };
 type Position = { latitude: number; longitude: number };
+type VisitReport = { stop: Stop; outcome: string; note: string };
 const zonePoints: Record<string, Position> = {
   Arnavaux: { latitude: 43.3428, longitude: 5.3776 },
   "Saint-Pierre": { latitude: 43.2917, longitude: 5.4142 },
@@ -156,6 +157,7 @@ export default function TourPlanner() {
   const [recommendation, setRecommendation] = useState("");
   const [online, setOnline] = useState(true);
   const [offlinePending, setOfflinePending] = useState(0);
+  const [visitReport, setVisitReport] = useState<VisitReport | null>(null);
   useEffect(() => {
     let live = true;
     (async () => {
@@ -357,24 +359,21 @@ export default function TourPlanner() {
       setBusy("");
     }
   }
-  async function outcome(s: Stop, value: string) {
-    setBusy(s.id);
+  function prepareOutcome(s: Stop, value: string) {
     const notePresets: Record<string, string> = {
-      visited:
-        "Échange réalisé. Flotte et interlocuteur à qualifier, puis proposer un rendez-vous.",
-      absent:
-        "Interlocuteur absent lors du passage. Repasser ou appeler l’entreprise.",
-      callback:
-        "L’entreprise demande à être recontactée. Créneau précis à confirmer.",
+      visited: "Échange réalisé. Flotte et interlocuteur à qualifier, puis proposer un rendez-vous.",
+      absent: "Interlocuteur absent lors du passage. Repasser ou appeler l’entreprise.",
+      callback: "L’entreprise demande à être recontactée. Créneau précis à confirmer.",
       closed: "Entreprise fermée lors du passage. Reprogrammer la visite.",
     };
-    const note =
-      prompt(
-        value === "visited"
-          ? "Personne rencontrée, besoin ou information utile"
-          : "Note rapide facultative pour préparer la prochaine action",
-        notePresets[value] || "",
-      ) || "";
+    setVisitReport({ stop: s, outcome: value, note: notePresets[value] || "" });
+  }
+  async function outcome(event: React.FormEvent) {
+    event.preventDefault();
+    if (!visitReport) return;
+    const { stop: s, outcome: value, note } = visitReport;
+    setBusy(s.id);
+    setVisitReport(null);
     const payload = {
       prospectId: s.id,
       prospectName: s.name,
@@ -536,25 +535,25 @@ export default function TourPlanner() {
                 <div className="visitActions">
                   <button
                     disabled={busy === s.id}
-                    onClick={() => outcome(s, "visited")}
+                    onClick={() => prepareOutcome(s, "visited")}
                   >
                     Prospecté
                   </button>
                   <button
                     disabled={busy === s.id}
-                    onClick={() => outcome(s, "absent")}
+                    onClick={() => prepareOutcome(s, "absent")}
                   >
                     Absent
                   </button>
                   <button
                     disabled={busy === s.id}
-                    onClick={() => outcome(s, "callback")}
+                    onClick={() => prepareOutcome(s, "callback")}
                   >
                     À relancer
                   </button>
                   <button
                     disabled={busy === s.id}
-                    onClick={() => outcome(s, "closed")}
+                    onClick={() => prepareOutcome(s, "closed")}
                   >
                     Fermé
                   </button>
@@ -592,6 +591,26 @@ export default function TourPlanner() {
           </div>
         </section>
       </div>
+      {visitReport && (
+        <div className="modalback" onMouseDown={() => setVisitReport(null)}>
+          <form className="modal terrainReport" onSubmit={outcome} onMouseDown={(event) => event.stopPropagation()}>
+            <div className="modalhead">
+              <div><p className="eyebrow">COMPTE RENDU TERRAIN</p><h2>{visitReport.stop.name}</h2></div>
+              <button type="button" onClick={() => setVisitReport(null)}>×</button>
+            </div>
+            <label>Résultat
+              <select value={visitReport.outcome} onChange={(event) => setVisitReport({ ...visitReport, outcome: event.target.value })}>
+                <option value="visited">Entreprise prospectée</option><option value="absent">Interlocuteur absent</option><option value="callback">À recontacter</option><option value="closed">Entreprise fermée</option>
+              </select>
+            </label>
+            <label>Information utile
+              <textarea rows={5} value={visitReport.note} onChange={(event) => setVisitReport({ ...visitReport, note: event.target.value })} />
+            </label>
+            <button className="primary" disabled={Boolean(busy)}>Enregistrer et créer la prochaine action</button>
+          </form>
+        </div>
+      )}
+      <style>{`.terrainReport{display:grid;gap:14px}.terrainReport label{font-size:10px;color:#5f6b7d}.terrainReport select,.terrainReport textarea{display:block;width:100%;margin-top:7px;padding:11px;border:1px solid #dce1e9;border-radius:9px}.terrainReport .primary{min-height:46px}@media(max-width:800px){.terrainReport{width:calc(100% - 24px);max-height:92vh;overflow:auto}.terrainReport select,.terrainReport textarea{font-size:16px}}`}</style>
     </>
   );
 }
