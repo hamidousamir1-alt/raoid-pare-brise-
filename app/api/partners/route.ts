@@ -201,7 +201,8 @@ export async function POST(req: NextRequest) {
     }
     if (x.action === "satisfaction") {
       const caseId = String(x.caseId || ""),
-        rating = Number(x.rating);
+        rating = Number(x.rating),
+        feedback = String(x.feedback || "").trim().slice(0, 1000);
       if (
         !UUID.test(caseId) ||
         !Number.isInteger(rating) ||
@@ -217,6 +218,13 @@ export async function POST(req: NextRequest) {
       if (rows.length) {
         await db()`update partner_profiles set satisfaction=(select round(avg(satisfaction))::int from service_cases where prospect_id=${rows[0].prospectId} and satisfaction is not null),updated_at=now() where prospect_id=${rows[0].prospectId}`;
         await db()`update sales_tasks set status='completed',completed_at=now(),updated_at=now() where service_case_id=${caseId} and task_type='satisfaction' and status='open'`;
+        if (rating <= 3) {
+          await db()`insert into sales_tasks(prospect_id,service_case_id,task_type,title,priority,due_at,source) values(${rows[0].prospectId},${caseId},'partner_recovery','Rappeler le partenaire et traiter son insatisfaction',98,now()+interval '1 day','partner') on conflict(service_case_id,task_type) where service_case_id is not null do nothing`;
+          await db()`update prospects set next_action='Rappeler le partenaire et traiter son insatisfaction',next_action_at=now()+interval '1 day',updated_at=now() where id=${rows[0].prospectId}`;
+        } else {
+          await db()`update prospects set next_action='Maintenir la relation partenaire',next_action_at=now()+interval '90 days',updated_at=now() where id=${rows[0].prospectId}`;
+        }
+        await db()`insert into prospect_events(prospect_id,event_type,payload) values(${rows[0].prospectId},'partner_satisfaction',${db().json({ serviceCaseId: caseId, rating, feedback })})`;
       }
       return rows.length
         ? NextResponse.json({ ok: true }, { headers: noStore })

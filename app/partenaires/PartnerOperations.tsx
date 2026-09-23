@@ -50,6 +50,14 @@ type Data = {
     satisfaction: number;
   };
 };
+type CaseFlow = {
+  item: ServiceCase;
+  mode: "scheduled" | "completed" | "satisfaction";
+  scheduledAt: string;
+  amount: string;
+  rating: string;
+  feedback: string;
+};
 const requestLabels: Record<string, string> = {
   windshield: "Pare-brise",
   side: "Vitrage latéral",
@@ -70,6 +78,18 @@ const money = (n = 0) =>
     currency: "EUR",
     maximumFractionDigits: 0,
   }).format(n);
+const localInput = (date: Date) => {
+  const copy = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return copy.toISOString().slice(0, 16);
+};
+const feedbackPresets = [
+  "Très satisfait de la prise en charge et de la rapidité d’intervention.",
+  "Satisfait, aucun point particulier signalé.",
+  "Satisfait mais souhaite améliorer la communication sur les délais.",
+  "Insatisfaction liée au délai de prise en charge.",
+  "Insatisfaction liée au suivi administratif ou à l’assurance.",
+  "Retour à approfondir avec le responsable de flotte.",
+];
 
 export default function PartnerOperations() {
   const [data, setData] = useState<Data | null>(null);
@@ -86,6 +106,7 @@ export default function PartnerOperations() {
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [caseFlow, setCaseFlow] = useState<CaseFlow | null>(null);
 
   async function load() {
     try {
@@ -175,50 +196,58 @@ export default function PartnerOperations() {
     setAmount("0");
     setNotes("");
   }
-  async function changeCase(item: ServiceCase, status: string) {
-    let scheduledAt: string | null = null;
-    let finalAmount = Number(item.amount || 0);
-    if (status === "scheduled") {
-      scheduledAt =
-        prompt("Date et heure (exemple : 2026-09-25 09:00) :") || "";
-      if (!scheduledAt) return;
-    }
-    if (status === "completed") {
-      const entered = prompt(
-        "Montant réel de l’intervention :",
-        String(finalAmount),
+  function openCaseFlow(
+    item: ServiceCase,
+    mode: CaseFlow["mode"],
+  ) {
+    const appointment = new Date(Date.now() + 86400_000);
+    appointment.setHours(9, 0, 0, 0);
+    setCaseFlow({
+      item,
+      mode,
+      scheduledAt: localInput(appointment),
+      amount: String(Number(item.amount || 0)),
+      rating: "5",
+      feedback: feedbackPresets[0],
+    });
+  }
+  async function submitCaseFlow(event: React.FormEvent) {
+    event.preventDefault();
+    if (!caseFlow) return;
+    if (caseFlow.mode === "satisfaction") {
+      await action(
+        {
+          action: "satisfaction",
+          caseId: caseFlow.item.id,
+          rating: Number(caseFlow.rating),
+          feedback: caseFlow.feedback,
+        },
+        caseFlow.item.id,
       );
-      if (
-        entered === null ||
-        !Number.isFinite(Number(entered)) ||
-        Number(entered) < 0
-      )
-        return;
-      finalAmount = Number(entered);
+      setCaseFlow(null);
+      return;
     }
     await action(
       {
         action: "case_status",
-        caseId: item.id,
-        status,
-        scheduledAt,
-        amount: finalAmount,
+        caseId: caseFlow.item.id,
+        status: caseFlow.mode,
+        scheduledAt:
+          caseFlow.mode === "scheduled"
+            ? new Date(caseFlow.scheduledAt).toISOString()
+            : null,
+        amount: Number(caseFlow.amount),
       },
-      item.id,
+      caseFlow.item.id,
     );
-  }
-  async function rate(item: ServiceCase) {
-    const entered = prompt("Satisfaction du partenaire, de 1 à 5 :", "5");
-    const rating = Number(entered);
-    if (!Number.isInteger(rating) || rating < 1 || rating > 5) return;
-    await action({ action: "satisfaction", caseId: item.id, rating }, item.id);
+    setCaseFlow(null);
   }
 
   return (
     <div className="partnerOps">
       <style>
         {
-          ".partnerOps{display:grid;gap:18px}.opsHead{display:flex;justify-content:space-between;align-items:flex-end;gap:18px}.opsHead h1{margin:4px 0 7px}.opsHead select{min-width:260px;padding:11px;border:1px solid #dce2e9;border-radius:10px;background:#fff}.opsKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.opsKpis article,.opsPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:19px}.opsKpis small{display:block;color:#7b8797;font-size:9px}.opsKpis b{display:block;font-size:23px;margin-top:7px}.partnerSummary{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}.partnerCard{background:linear-gradient(120deg,#07111f,#172536);color:#fff;border-radius:18px;padding:24px}.partnerCard p{color:#aeb8c5}.partnerCard .primary{margin-top:12px}.partnerNumbers{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:18px}.partnerNumbers div{padding:12px;background:rgba(255,255,255,.06);border-radius:10px}.partnerNumbers small,.partnerNumbers b{display:block}.partnerNumbers small{color:#aeb8c5;font-size:8px}.opsGrid{display:grid;grid-template-columns:.8fr 1.2fr;gap:18px}.opsForms{display:grid;gap:18px}.opsForm{display:grid;gap:10px}.opsForm label{display:grid;gap:5px;color:#657386;font-size:10px}.opsForm input,.opsForm select,.opsForm textarea{width:100%;padding:10px;border:1px solid #dce2e9;border-radius:9px;background:#fff}.opsForm textarea{min-height:70px}.fieldPair{display:grid;grid-template-columns:1fr 1fr;gap:9px}.vehicleTag{display:inline-flex;padding:6px 8px;margin:4px;border-radius:7px;background:#f2f5f7;font-size:10px}.caseLine{padding:15px 0;border-top:1px solid #edf0f4}.caseLine:first-of-type{border-top:0}.caseLine header{display:flex;justify-content:space-between;gap:10px}.caseLine p{color:#687587;font-size:11px;line-height:1.5}.caseStatus{padding:6px 8px;border-radius:7px;background:#eef2f6;font-size:9px;height:max-content}.caseStatus.completed{background:#e8f7ed;color:#26703f}.caseActions{display:flex;gap:7px;flex-wrap:wrap}.caseActions button{font-size:10px}.opsEmpty{padding:16px;border-radius:10px;background:#f4f8f5;color:#28633d}@media(max-width:900px){.opsKpis{grid-template-columns:1fr 1fr}.partnerSummary,.opsGrid{grid-template-columns:1fr}.opsHead{align-items:flex-start;flex-direction:column}.opsHead select{width:100%;min-width:0}.fieldPair{grid-template-columns:1fr}}"
+          ".partnerOps{display:grid;gap:18px}.opsHead{display:flex;justify-content:space-between;align-items:flex-end;gap:18px}.opsHead h1{margin:4px 0 7px}.opsHead select{min-width:260px;padding:11px;border:1px solid #dce2e9;border-radius:10px;background:#fff}.opsKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.opsKpis article,.opsPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:19px}.opsKpis small{display:block;color:#7b8797;font-size:9px}.opsKpis b{display:block;font-size:23px;margin-top:7px}.partnerSummary{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}.partnerCard{background:linear-gradient(120deg,#07111f,#172536);color:#fff;border-radius:18px;padding:24px}.partnerCard p{color:#aeb8c5}.partnerCard .primary{margin-top:12px}.partnerNumbers{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:18px}.partnerNumbers div{padding:12px;background:rgba(255,255,255,.06);border-radius:10px}.partnerNumbers small,.partnerNumbers b{display:block}.partnerNumbers small{color:#aeb8c5;font-size:8px}.opsGrid{display:grid;grid-template-columns:.8fr 1.2fr;gap:18px}.opsForms{display:grid;gap:18px}.opsForm{display:grid;gap:10px}.opsForm label,.caseFlowForm label{display:grid;gap:5px;color:#657386;font-size:10px}.opsForm input,.opsForm select,.opsForm textarea,.caseFlowForm input,.caseFlowForm select,.caseFlowForm textarea{width:100%;padding:10px;border:1px solid #dce2e9;border-radius:9px;background:#fff}.opsForm textarea,.caseFlowForm textarea{min-height:70px}.fieldPair{display:grid;grid-template-columns:1fr 1fr;gap:9px}.vehicleTag{display:inline-flex;padding:6px 8px;margin:4px;border-radius:7px;background:#f2f5f7;font-size:10px}.caseLine{padding:15px 0;border-top:1px solid #edf0f4}.caseLine:first-of-type{border-top:0}.caseLine header{display:flex;justify-content:space-between;gap:10px}.caseLine p{color:#687587;font-size:11px;line-height:1.5}.caseStatus{padding:6px 8px;border-radius:7px;background:#eef2f6;font-size:9px;height:max-content}.caseStatus.completed{background:#e8f7ed;color:#26703f}.caseActions{display:flex;gap:7px;flex-wrap:wrap}.caseActions button{font-size:10px}.opsEmpty{padding:16px;border-radius:10px;background:#f4f8f5;color:#28633d}.caseFlowForm{display:grid;gap:13px}.caseFlowForm>.primary{min-height:46px}@media(max-width:900px){.opsKpis{grid-template-columns:1fr 1fr}.partnerSummary,.opsGrid{grid-template-columns:1fr}.opsHead{align-items:flex-start;flex-direction:column}.opsHead select{width:100%;min-width:0}.fieldPair{grid-template-columns:1fr}.caseFlowForm{width:calc(100% - 24px);max-height:92vh;overflow:auto}.caseFlowForm input,.caseFlowForm select,.caseFlowForm textarea{font-size:16px}}"
         }{" "}
       </style>
       <header className="opsHead">
@@ -452,12 +481,24 @@ export default function PartnerOperations() {
                     {item.notes && <p>{item.notes}</p>}
                     <div className="caseActions">
                       {item.status === "new" && (
-                        <button onClick={() => changeCase(item, "scheduled")}>
+                        <button onClick={() => openCaseFlow(item, "scheduled")}>
                           Planifier
                         </button>
                       )}
                       {item.status === "scheduled" && (
-                        <button onClick={() => changeCase(item, "in_progress")}>
+                        <button
+                          onClick={() =>
+                            action(
+                              {
+                                action: "case_status",
+                                caseId: item.id,
+                                status: "in_progress",
+                                amount: Number(item.amount || 0),
+                              },
+                              item.id,
+                            )
+                          }
+                        >
                           Démarrer
                         </button>
                       )}
@@ -466,13 +507,13 @@ export default function PartnerOperations() {
                       ) && (
                         <button
                           className="primary"
-                          onClick={() => changeCase(item, "completed")}
+                          onClick={() => openCaseFlow(item, "completed")}
                         >
                           Terminer
                         </button>
                       )}
                       {item.status === "completed" && !item.satisfaction && (
-                        <button onClick={() => rate(item)}>
+                        <button onClick={() => openCaseFlow(item, "satisfaction")}>
                           Noter la satisfaction
                         </button>
                       )}
@@ -499,6 +540,47 @@ export default function PartnerOperations() {
             </p>
           </section>
         )
+      )}
+      {caseFlow && (
+        <div className="modalback" onMouseDown={() => setCaseFlow(null)}>
+          <form className="modal caseFlowForm" onSubmit={submitCaseFlow} onMouseDown={(event) => event.stopPropagation()}>
+            <div className="modalhead">
+              <div>
+                <p className="eyebrow">SUIVI PARTENAIRE GUIDÉ</p>
+                <h2>{caseFlow.mode === "scheduled" ? "Planifier l’intervention" : caseFlow.mode === "completed" ? "Clôturer l’intervention" : "Mesurer la satisfaction"}</h2>
+              </div>
+              <button type="button" onClick={() => setCaseFlow(null)}>×</button>
+            </div>
+            <p className="muted">{requestLabels[caseFlow.item.requestType]} · {caseFlow.item.registration || "Véhicule non identifié"}</p>
+            {caseFlow.mode === "scheduled" && (
+              <label>Date et heure de l’intervention
+                <input required type="datetime-local" value={caseFlow.scheduledAt} onChange={(event) => setCaseFlow({ ...caseFlow, scheduledAt: event.target.value })} />
+              </label>
+            )}
+            {caseFlow.mode === "completed" && (
+              <label>Montant réel de l’intervention
+                <input required type="number" min="0" step="0.01" value={caseFlow.amount} onChange={(event) => setCaseFlow({ ...caseFlow, amount: event.target.value })} />
+              </label>
+            )}
+            {caseFlow.mode === "satisfaction" && (
+              <>
+                <label>Niveau de satisfaction
+                  <select value={caseFlow.rating} onChange={(event) => setCaseFlow({ ...caseFlow, rating: event.target.value })}>
+                    <option value="5">5 — Très satisfait</option><option value="4">4 — Satisfait</option><option value="3">3 — Mitigé</option><option value="2">2 — Insatisfait</option><option value="1">1 — Très insatisfait</option>
+                  </select>
+                </label>
+                <label>Retour du partenaire
+                  <select value={caseFlow.feedback} onChange={(event) => setCaseFlow({ ...caseFlow, feedback: event.target.value })}>
+                    {feedbackPresets.map((item) => <option key={item}>{item}</option>)}
+                  </select>
+                </label>
+              </>
+            )}
+            <button className="primary" disabled={busy === caseFlow.item.id}>
+              {caseFlow.mode === "scheduled" ? "Planifier et préparer le suivi" : caseFlow.mode === "completed" ? "Terminer et programmer la satisfaction" : "Enregistrer et adapter le suivi"}
+            </button>
+          </form>
+        </div>
       )}
     </div>
   );
