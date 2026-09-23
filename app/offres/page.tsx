@@ -70,6 +70,8 @@ export default function OffersPage() {
   );
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [refusalOffer, setRefusalOffer] = useState<Offer | null>(null);
+  const [refusalReason, setRefusalReason] = useState("");
 
   async function load() {
     try {
@@ -128,13 +130,10 @@ export default function OffersPage() {
   }
 
   async function changeStatus(offer: Offer, status: string) {
-    let refusalReason = "";
     if (status === "refused") {
-      refusalReason =
-        prompt(
-          "Motif du refus (obligatoire pour adapter la prochaine action) :",
-        )?.trim() || "";
-      if (!refusalReason) return;
+      setRefusalOffer(offer);
+      setRefusalReason("");
+      return;
     }
     if (
       status === "accepted" &&
@@ -163,6 +162,69 @@ export default function OffersPage() {
       await load();
     } catch {
       alert("Le statut de l’offre n’a pas pu être mis à jour.");
+    } finally {
+      setBusy("");
+    }
+  }
+  function applyTemplate(value: string) {
+    if (value === "partnership") {
+      setOfferType("partnership");
+      setTitle("Proposition de partenariat vitrage");
+      setSummary(
+        "Prise en charge du remplacement de pare-brise et de tout vitrage pour la flotte de l’entreprise, avec un interlocuteur local dédié.",
+      );
+      setTerms(
+        "Intervention sur rendez-vous selon les disponibilités. Modalités administratives et assurance à confirmer avec l’entreprise.",
+      );
+    } else if (value === "fleet") {
+      setOfferType("service");
+      setTitle("Solution vitrage pour votre flotte de véhicules");
+      setSummary(
+        "Organisation simplifiée des interventions vitrage afin de limiter l’immobilisation des véhicules professionnels.",
+      );
+      setTerms(
+        "Remplacement de pare-brise et de tout vitrage automobile. Planification avec le responsable de flotte et suivi centralisé des dossiers.",
+      );
+    } else if (value === "priority") {
+      setOfferType("service");
+      setTitle("Prise en charge prioritaire des véhicules professionnels");
+      setSummary(
+        "Circuit de prise en charge prioritaire pour réduire le temps d’arrêt des véhicules et faciliter la coordination avec les conducteurs.",
+      );
+      setTerms(
+        "Créneaux définis selon les disponibilités du centre et de l’entreprise. Conditions d’assurance et éventuelle franchise à confirmer avant intervention.",
+      );
+    } else if (value === "quote") {
+      setOfferType("quote");
+      setTitle("Devis remplacement vitrage automobile");
+      setSummary(
+        "Devis pour le remplacement du pare-brise ou de tout autre vitrage du véhicule concerné.",
+      );
+      setTerms(
+        "Sous réserve de vérification du véhicule, de la référence du vitrage et des conditions de couverture du contrat d’assurance.",
+      );
+    }
+  }
+  async function confirmRefusal() {
+    if (!refusalOffer || !refusalReason.trim()) return;
+    const offer = refusalOffer;
+    setBusy(offer.id);
+    try {
+      const response = await fetch("/api/offers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "status",
+          offerId: offer.id,
+          status: "refused",
+          refusalReason,
+        }),
+      });
+      if (!response.ok) throw new Error();
+      setRefusalOffer(null);
+      await load();
+    } catch {
+      alert("Le refus n’a pas pu être enregistré.");
     } finally {
       setBusy("");
     }
@@ -207,6 +269,21 @@ export default function OffersPage() {
         <form className="offerPanel offerForm" onSubmit={createOffer}>
           <p className="eyebrow">NOUVELLE PROPOSITION</p>
           <h2>Préparer une offre</h2>
+          <label>
+            Modèle prérempli
+            <select
+              value=""
+              onChange={(event) => applyTemplate(event.target.value)}
+            >
+              <option value="">Choisir un modèle…</option>
+              <option value="partnership">
+                Partenariat vitrage entreprise
+              </option>
+              <option value="fleet">Gestion de flotte</option>
+              <option value="priority">Prise en charge prioritaire</option>
+              <option value="quote">Devis vitrage</option>
+            </select>
+          </label>
           <label>
             Entreprise
             <select
@@ -355,6 +432,51 @@ export default function OffersPage() {
           )}
         </section>
       </section>
+      {refusalOffer && (
+        <div className="modalback" onMouseDown={() => setRefusalOffer(null)}>
+          <section
+            className="modal"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modalhead">
+              <div>
+                <p className="eyebrow">OFFRE REFUSÉE</p>
+                <h2>{refusalOffer.prospect}</h2>
+              </div>
+              <button onClick={() => setRefusalOffer(null)}>×</button>
+            </div>
+            <label className="offerForm">
+              Motif du refus
+              <select
+                value={refusalReason}
+                onChange={(event) => setRefusalReason(event.target.value)}
+              >
+                <option value="">Choisir le motif…</option>
+                <option>Tarif jugé trop élevé</option>
+                <option>Prestataire actuel conservé</option>
+                <option>Gestion imposée par l’assurance</option>
+                <option>Décision prise par le siège</option>
+                <option>Pas de besoin actuellement</option>
+                <option>Flotte trop petite</option>
+                <option>Service géré en interne</option>
+                <option>Délai ou disponibilité incompatible</option>
+                <option>Projet reporté</option>
+                <option>Refus sans motif communiqué</option>
+              </select>
+            </label>
+            <div className="modalactions">
+              <button onClick={() => setRefusalOffer(null)}>Annuler</button>
+              <button
+                className="primary"
+                disabled={!refusalReason || busy === refusalOffer.id}
+                onClick={confirmRefusal}
+              >
+                Enregistrer le refus
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

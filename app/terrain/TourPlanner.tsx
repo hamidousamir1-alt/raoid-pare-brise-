@@ -359,12 +359,21 @@ export default function TourPlanner() {
   }
   async function outcome(s: Stop, value: string) {
     setBusy(s.id);
+    const notePresets: Record<string, string> = {
+      visited:
+        "Échange réalisé. Flotte et interlocuteur à qualifier, puis proposer un rendez-vous.",
+      absent:
+        "Interlocuteur absent lors du passage. Repasser ou appeler l’entreprise.",
+      callback:
+        "L’entreprise demande à être recontactée. Créneau précis à confirmer.",
+      closed: "Entreprise fermée lors du passage. Reprogrammer la visite.",
+    };
     const note =
       prompt(
         value === "visited"
           ? "Personne rencontrée, besoin ou information utile"
           : "Note rapide facultative pour préparer la prochaine action",
-        "",
+        notePresets[value] || "",
       ) || "";
     const payload = {
       prospectId: s.id,
