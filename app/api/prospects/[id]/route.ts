@@ -68,6 +68,9 @@ export async function GET(
       offers,
       vehicles,
       serviceCases,
+      messages,
+      tasks,
+      visits,
     ] = await Promise.all([
       db()`select id,event_type as "eventType",payload,created_at as "createdAt" from prospect_events where prospect_id=${id} order by created_at desc limit 100`,
       db()`select id,name,role,email,phone,is_decision_maker as "isDecisionMaker",is_primary as "isPrimary",preferred_channel as "preferredChannel",notes from prospect_contacts where prospect_id=${id} and deleted_at is null order by is_primary desc,created_at`,
@@ -77,7 +80,106 @@ export async function GET(
       db()`select id,title,offer_type as "offerType",status,amount,valid_until as "validUntil",summary,terms,sent_at as "sentAt",viewed_at as "viewedAt",decided_at as "decidedAt",refusal_reason as "refusalReason",created_at as "createdAt" from commercial_offers where prospect_id=${id} order by created_at desc limit 30`,
       db()`select id,registration,make,model,vehicle_year as "vehicleYear",driver_name as "driverName",notes,active from fleet_vehicles where prospect_id=${id} order by active desc,registration`,
       db()`select id,vehicle_id as "vehicleId",request_type as "requestType",status,requested_at as "requestedAt",scheduled_at as "scheduledAt",completed_at as "completedAt",insurer,claim_number as "claimNumber",amount,notes,satisfaction from service_cases where prospect_id=${id} order by requested_at desc limit 50`,
+      db()`select id,direction,status,subject,scheduled_at as "scheduledAt",sent_at as "sentAt",replied_at as "repliedAt",created_at as "createdAt",reply_category as "replyCategory" from email_messages where prospect_id=${id} order by created_at desc limit 50`,
+      db()`select id,title,task_type as "taskType",status,priority,due_at as "dueAt",completed_at as "completedAt",created_at as "createdAt" from sales_tasks where prospect_id=${id} order by created_at desc limit 50`,
+      db()`select id,outcome,note,visited_at as "visitedAt" from field_visits where prospect_id=${id} order by visited_at desc limit 50`,
     ]);
+    const timeline = [
+      ...(events as any[]).map((event) => ({
+        id: `event:${event.id}`,
+        category: "system",
+        title: String(event.eventType).replaceAll("_", " "),
+        detail:
+          typeof event.payload?.note === "string" ? event.payload.note : "",
+        status: "recorded",
+        at: event.createdAt,
+      })),
+      ...(calls as any[]).map((call) => ({
+        id: `call:${call.id}`,
+        category: "call",
+        title: `Appel ${call.direction === "inbound" ? "entrant" : "sortant"}`,
+        detail: call.notes || call.nextAction || "Compte rendu non renseigné",
+        status: call.outcome || "logged",
+        at: call.startedAt,
+      })),
+      ...(messages as any[]).map((message) => ({
+        id: `email:${message.id}`,
+        category: "email",
+        title: `${message.direction === "inbound" ? "E-mail reçu" : "E-mail envoyé"} · ${message.subject}`,
+        detail: message.replyCategory
+          ? `Réponse détectée : ${message.replyCategory}`
+          : "",
+        status: message.status,
+        at:
+          message.repliedAt ||
+          message.sentAt ||
+          message.scheduledAt ||
+          message.createdAt,
+      })),
+      ...(visits as any[]).map((visit) => ({
+        id: `visit:${visit.id}`,
+        category: "field",
+        title: "Passage dans l’entreprise",
+        detail: visit.note || "Aucune note ajoutée",
+        status: visit.outcome,
+        at: visit.visitedAt,
+      })),
+      ...(appointments as any[]).map((appointment) => ({
+        id: `appointment:${appointment.id}`,
+        category: "appointment",
+        title: appointment.title,
+        detail: `${appointment.meetingType}${appointment.location ? ` · ${appointment.location}` : ""}`,
+        status: appointment.status,
+        at: appointment.startsAt,
+      })),
+      ...(offers as any[]).map((offer) => ({
+        id: `offer:${offer.id}`,
+        category: "offer",
+        title: offer.title,
+        detail: offer.summary || `${Number(offer.amount || 0).toFixed(0)} €`,
+        status: offer.status,
+        at: offer.sentAt || offer.createdAt,
+      })),
+      ...(tasks as any[]).map((task) => ({
+        id: `task:${task.id}`,
+        category: "task",
+        title: task.title,
+        detail: `Priorité ${task.priority}/100`,
+        status: task.status,
+        at: task.completedAt || task.dueAt || task.createdAt,
+      })),
+      ...(documents as any[]).map((document) => ({
+        id: `document:${document.id}`,
+        category: "document",
+        title: document.name,
+        detail: document.category,
+        status: "linked",
+        at: document.createdAt,
+      })),
+      ...(serviceCases as any[]).map((serviceCase) => ({
+        id: `service:${serviceCase.id}`,
+        category: "service",
+        title: serviceCase.requestType,
+        detail:
+          serviceCase.notes || serviceCase.insurer || "Intervention vitrage",
+        status: serviceCase.status,
+        at:
+          serviceCase.completedAt ||
+          serviceCase.scheduledAt ||
+          serviceCase.requestedAt,
+      })),
+    ]
+      .filter((item) => item.at)
+      .sort(
+        (first, second) =>
+          new Date(second.at).getTime() - new Date(first.at).getTime(),
+      )
+      .slice(0, 200);
+    const lastInteraction = timeline.find((item) =>
+      ["call", "email", "field", "appointment", "offer", "service"].includes(
+        item.category,
+      ),
+    );
     return NextResponse.json(
       {
         mode: "postgresql",
@@ -90,6 +192,19 @@ export async function GET(
         offers,
         vehicles,
         serviceCases,
+        messages,
+        tasks,
+        visits,
+        timeline,
+        activitySummary: {
+          total: timeline.length,
+          calls: calls.length,
+          emails: messages.length,
+          visits: visits.length,
+          appointments: appointments.length,
+          offers: offers.length,
+          lastInteractionAt: lastInteraction?.at || null,
+        },
       },
       { headers: noStore },
     );

@@ -19,11 +19,22 @@ type Contact = {
   preferredChannel: string;
   notes: string;
 };
-type ProspectEvent = {
+type TimelineItem = {
   id: string;
-  eventType: string;
-  payload: Record<string, unknown>;
-  createdAt: string;
+  category:
+    | "system"
+    | "call"
+    | "email"
+    | "field"
+    | "appointment"
+    | "offer"
+    | "task"
+    | "document"
+    | "service";
+  title: string;
+  detail: string;
+  status: string;
+  at: string;
 };
 type ProspectDocument = {
   id: string;
@@ -98,7 +109,8 @@ export default function ProspectManager() {
     [storage, setStorage] = useState<Storage>("loading"),
     [query, setQuery] = useState(""),
     [editing, setEditing] = useState<Prospect | null>(null),
-    [events, setEvents] = useState<ProspectEvent[]>([]),
+    [timeline, setTimeline] = useState<TimelineItem[]>([]),
+    [timelineFilter, setTimelineFilter] = useState("all"),
     [documents, setDocuments] = useState<ProspectDocument[]>([]),
     [appointments, setAppointments] = useState<ProspectAppointment[]>([]),
     [detailBusy, setDetailBusy] = useState(false),
@@ -204,7 +216,8 @@ export default function ProspectManager() {
   }
   async function openRecord(prospect: Prospect) {
     setEditing(prospect);
-    setEvents([]);
+    setTimeline([]);
+    setTimelineFilter("all");
     setDocuments([]);
     setAppointments([]);
     setOpen(true);
@@ -217,7 +230,7 @@ export default function ProspectManager() {
       if (!response.ok) return;
       const detail = await response.json();
       setEditing({ ...detail.item, contacts: detail.contacts || [] });
-      setEvents(detail.events || []);
+      setTimeline(detail.timeline || []);
       setDocuments(detail.documents || []);
       setAppointments(detail.appointments || []);
     } finally {
@@ -398,7 +411,8 @@ export default function ProspectManager() {
               return;
             }
             setEditing(fresh());
-            setEvents([]);
+            setTimeline([]);
+            setTimelineFilter("all");
             setDocuments([]);
             setAppointments([]);
             setOpen(true);
@@ -1091,19 +1105,76 @@ export default function ProspectManager() {
                 <section className="timelineSection">
                   <div className="sectionTitle">
                     <div>
-                      <b>Historique du dossier</b>
-                      <small>{events.length} événement(s) conservé(s)</small>
+                      <b>Chronologie commerciale complète</b>
+                      <small>{timeline.length} activité(s) regroupée(s)</small>
                     </div>
                   </div>
-                  {events.slice(0, 12).map((event) => (
-                    <p key={event.id}>
-                      <time>
-                        {new Date(event.createdAt).toLocaleDateString("fr-FR")}
-                      </time>
-                      <b>{event.eventType.replaceAll("_", " ")}</b>
-                    </p>
-                  ))}
-                  {!events.length && <p>Aucun historique enregistré.</p>}
+                  <div className="timelineFilters">
+                    {[
+                      ["all", "Tout"],
+                      ["call", "Appels"],
+                      ["email", "E-mails"],
+                      ["field", "Terrain"],
+                      ["appointment", "RDV"],
+                      ["offer", "Offres"],
+                      ["task", "Actions"],
+                    ].map(([value, label]) => (
+                      <button
+                        type="button"
+                        className={timelineFilter === value ? "active" : ""}
+                        key={value}
+                        onClick={() => setTimelineFilter(value)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="unifiedTimeline">
+                    {timeline
+                      .filter(
+                        (item) =>
+                          timelineFilter === "all" ||
+                          item.category === timelineFilter,
+                      )
+                      .slice(0, 40)
+                      .map((item) => (
+                        <article key={item.id}>
+                          <span className={`timelineIcon ${item.category}`}>
+                            {item.category === "call"
+                              ? "☎"
+                              : item.category === "email"
+                                ? "✉"
+                                : item.category === "field"
+                                  ? "⌖"
+                                  : item.category === "appointment"
+                                    ? "◷"
+                                    : item.category === "offer"
+                                      ? "€"
+                                      : item.category === "document"
+                                        ? "▤"
+                                        : item.category === "service"
+                                          ? "◇"
+                                          : item.category === "task"
+                                            ? "✓"
+                                            : "•"}
+                          </span>
+                          <div>
+                            <header>
+                              <b>{item.title}</b>
+                              <time>
+                                {new Date(item.at).toLocaleString("fr-FR", {
+                                  dateStyle: "short",
+                                  timeStyle: "short",
+                                })}
+                              </time>
+                            </header>
+                            {item.detail ? <p>{item.detail}</p> : null}
+                            <small>{item.status.replaceAll("_", " ")}</small>
+                          </div>
+                        </article>
+                      ))}
+                  </div>
+                  {!timeline.length && <p>Aucun historique enregistré.</p>}
                 </section>
               </div>
             </div>

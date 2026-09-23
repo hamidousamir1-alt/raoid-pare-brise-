@@ -640,6 +640,90 @@ h2 {
 .timelineSection time {
   color: #8b96a5;
 }
+.timelineFilters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.timelineFilters button {
+  padding: 7px 9px;
+  border: 1px solid #e1e6ec;
+  border-radius: 8px;
+  background: #f7f8fa;
+  color: #637083;
+  font-size: 8px;
+}
+.timelineFilters button.active {
+  background: #111c2a;
+  color: #fff;
+  border-color: #111c2a;
+}
+.unifiedTimeline {
+  display: grid;
+  gap: 0;
+}
+.unifiedTimeline article {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid #edf0f4;
+}
+.timelineIcon {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  border-radius: 9px;
+  background: #f3f5f7;
+  color: #59677a;
+  font-size: 11px;
+}
+.timelineIcon.email {
+  background: #eef4ff;
+  color: #315eaa;
+}
+.timelineIcon.call {
+  background: #edf8f1;
+  color: #277247;
+}
+.timelineIcon.field {
+  background: #fff2f2;
+  color: #c72d38;
+}
+.timelineIcon.appointment {
+  background: #fff7e8;
+  color: #9a6511;
+}
+.timelineIcon.offer {
+  background: #f2efff;
+  color: #6845a5;
+}
+.unifiedTimeline article header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.unifiedTimeline article header b {
+  font-size: 10px;
+}
+.unifiedTimeline article time {
+  font-size: 8px;
+  color: #8a95a4;
+  white-space: nowrap;
+}
+.unifiedTimeline article p {
+  margin: 5px 0;
+  color: #687587;
+  font-size: 9px;
+  line-height: 1.45;
+}
+.unifiedTimeline article small {
+  font-size: 7px;
+  text-transform: uppercase;
+  color: #8a95a4;
+}
 .strategy,
 .pipelineHero {
   border-radius: 19px;
