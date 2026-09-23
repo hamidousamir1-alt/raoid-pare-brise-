@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authConfigured, sessionValid } from "../../../lib/auth";
 import { databaseConfigured, db } from "../../../lib/db";
 import { recommendationFor } from "../../../lib/commercial-intelligence";
+import { generateDailyActions } from "../../../lib/daily-actions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -132,6 +133,8 @@ export async function POST(req: NextRequest) {
   if (denied) return denied;
   try {
     const x = await req.json();
+    if (x.action === "generate_plan")
+      return NextResponse.json({ ok: true, ...(await generateDailyActions()) });
     const prospectId = String(x.prospectId || "");
     const action = String(x.action || "");
     if (

@@ -163,6 +163,8 @@ CREATE TABLE IF NOT EXISTS sales_tasks(
 );
 CREATE UNIQUE INDEX IF NOT EXISTS sales_tasks_message_type_idx ON sales_tasks(message_id,task_type) WHERE message_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS sales_tasks_open_idx ON sales_tasks(status,due_at,priority DESC) WHERE status='open';
+ALTER TABLE sales_tasks ADD COLUMN IF NOT EXISTS generated_for_date date;
+CREATE UNIQUE INDEX IF NOT EXISTS sales_tasks_daily_plan_idx ON sales_tasks(prospect_id,task_type,generated_for_date) WHERE generated_for_date IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS appointments(
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -319,6 +321,9 @@ INSERT INTO automation_settings(setting_key,label,category,enabled,numeric_value
 ('satisfaction_follow_up','Demande de satisfaction','Partenaires',true,2,'jours','Programme le retour après une intervention.'),
 ('stale_opportunity','Alerte dossier inactif','Pilotage',true,14,'jours','Signale les opportunités sans mouvement.'),
 ('data_review','Contrôle des données','Données',true,90,'jours','Signale les fiches à vérifier.') ON CONFLICT(setting_key) DO NOTHING;
+INSERT INTO automation_settings(setting_key,label,category,enabled,numeric_value,unit,description) VALUES
+('daily_action_plan','Plan d’actions quotidien','Pilotage',true,12,'actions','Prépare chaque matin les meilleures actions, sans doublon ni relance trop rapprochée.')
+ON CONFLICT(setting_key) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS field_visits(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),prospect_id uuid NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT,outcome text NOT NULL CHECK(outcome IN ('visited','absent','callback','not_interested','not_found','closed')),note text,latitude double precision,longitude double precision,visited_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS field_visits_prospect_idx ON field_visits(prospect_id,visited_at DESC);

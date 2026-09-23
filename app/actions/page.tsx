@@ -170,6 +170,29 @@ export default function ActionsPage() {
     }
   }
 
+  async function generatePlan() {
+    setBusy("generate-plan");
+    try {
+      const response = await fetch("/api/intelligence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "generate_plan" }),
+      });
+      if (!response.ok) throw new Error();
+      const result = await response.json();
+      await load();
+      alert(
+        result.paused
+          ? "Le plan quotidien est désactivé dans les réglages."
+          : `${result.created} nouvelle(s) action(s) ajoutée(s), sans doublon.`,
+      );
+    } catch {
+      alert("Le plan quotidien n’a pas pu être préparé.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function copyText(text: string, label: string) {
     await navigator.clipboard.writeText(text);
     alert(`${label} copié.`);
@@ -198,6 +221,13 @@ export default function ActionsPage() {
             </b>{" "}
             validations
           </span>
+          <button
+            className="primary"
+            disabled={busy === "generate-plan"}
+            onClick={generatePlan}
+          >
+            {busy === "generate-plan" ? "Préparation…" : "Préparer ma journée"}
+          </button>
         </div>
       </header>
       {error && <section className="actionPanel">{error}</section>}
