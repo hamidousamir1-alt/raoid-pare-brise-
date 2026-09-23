@@ -5,7 +5,12 @@ type Data = {
   funnel: Record<string, number>;
   activity: Record<string, number>;
   revenue: Record<string, number>;
-  emails: { sent: number; replies: number };
+  emails: {
+    sent: number;
+    replies: number;
+    positiveReplies: number;
+    activeCampaigns: number;
+  };
   calls: {
     total: number;
     positive: number;
@@ -219,7 +224,7 @@ export default function PerformanceCockpit() {
           <small>RÉPONSES E-MAILS</small>
           <b>{percent(data.emails.replies, data.emails.sent)}%</b>
           <span>
-            {data.emails.replies} réponse(s) sur {data.emails.sent}
+            {data.emails.replies} réponse(s), dont {data.emails.positiveReplies} positive(s) · {data.emails.activeCampaigns} campagne(s) active(s)
           </span>
         </article>
         <article className="metricCard">

@@ -30,6 +30,7 @@ export async function generateDailyActions() {
         or exists(select 1 from prospect_events e where e.prospect_id=p.id and e.event_type in ('field_visit','call_logged','email_reply_classified','appointment_created'))
       )
       and not exists(select 1 from sales_tasks t where t.prospect_id=p.id and t.status='open')
+      and not exists(select 1 from email_enrollments e where e.prospect_id=p.id and e.status='active')
       and not exists(select 1 from appointments a where a.prospect_id=p.id and a.status not in ('cancelled','completed','no_show') and a.starts_at::date=current_date)
       and not exists(select 1 from sales_tasks t where t.prospect_id=p.id and t.task_type='daily_plan' and t.generated_for_date=current_date)
       and (p.next_action_at<=now() or p.last_contact_at is null or p.last_contact_at<now()-interval '2 days')

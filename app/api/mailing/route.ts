@@ -350,6 +350,7 @@ export async function POST(req: NextRequest) {
             key = `sequence:${enrollment[0].id}:step:${step.stepOrder}`;
           await sql`insert into email_messages(prospect_id,enrollment_id,template_id,status,recipient_email,sender_email,sender_name,subject,body_html,body_text,scheduled_at,idempotency_key) values(${p.id},${enrollment[0].id},${step.templateId},'scheduled',${p.email},${MAIL_FROM.email},${MAIL_FROM.name},${subject},${html},${plain},${scheduledAt.toISOString()},${key})`;
         }
+        await sql`update prospects set next_action='Premier message de la séquence programmé',next_action_at=now()+make_interval(days=>${steps[0].delayDays}),updated_at=now() where id=${p.id}`;
         await sql`insert into prospect_events(prospect_id,event_type,payload) values(${p.id},'email_sequence_started',${sql.json({ sequenceId, enrollmentId: enrollment[0].id })})`;
       });
       return NextResponse.json(
@@ -398,6 +399,7 @@ export async function POST(req: NextRequest) {
               key = `campaign:${enrollment[0].id}:step:${step.stepOrder}`;
             await sql`insert into email_messages(prospect_id,enrollment_id,template_id,status,recipient_email,sender_email,sender_name,subject,body_html,body_text,scheduled_at,idempotency_key) values(${p.id},${enrollment[0].id},${step.templateId},'scheduled',${p.email},${MAIL_FROM.email},${MAIL_FROM.name},${subject},${html},${plain},${scheduledAt.toISOString()},${key})`;
           }
+          await sql`update prospects set next_action='Campagne marketing programmée — premier message à venir',next_action_at=${firstSend.toISOString()},updated_at=now() where id=${p.id}`;
           await sql`insert into prospect_events(prospect_id,event_type,payload) values(${p.id},'email_campaign_started',${sql.json({ campaignName, sequenceId, enrollmentId: enrollment[0].id, position: position + 1 })})`;
           enrolled += 1;
         }

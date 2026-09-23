@@ -40,14 +40,20 @@ export async function GET(req: NextRequest) {
     failed = 0;
   try {
     const due =
-      await db()`update email_messages set status='sending',updated_at=now() where id in(select id from email_messages where status='scheduled' and scheduled_at<=now() order by scheduled_at limit 20 for update skip locked) returning id,prospect_id as "prospectId",recipient_email as recipient,subject,body_html as html`;
+      await db()`update email_messages set status='sending',updated_at=now() where id in(select id from email_messages where status='scheduled' and scheduled_at<=now() order by scheduled_at limit 20 for update skip locked) returning id,prospect_id as "prospectId",enrollment_id as "enrollmentId",recipient_email as recipient,subject,body_html as html`;
     for (const m of due) {
       try {
         const logo = `${process.env.CRM_PUBLIC_URL!.replace(/\/$/, "")}/rapid-logo.png`,
           html = String(m.html).replaceAll("{{logo_url}}", logo);
         await sendMicrosoftMail({ to: m.recipient, subject: m.subject, html });
-        await db()`update email_messages set status='sent',sent_at=now(),updated_at=now() where id=${m.id} and status='sending'`;
-        await db()`insert into prospect_events(prospect_id,event_type,payload) values(${m.prospectId},'email_sent',${db().json({ messageId: m.id, subject: m.subject })})`;
+        await db().begin(async (sql) => {
+          await sql`update email_messages set status='sent',sent_at=now(),updated_at=now() where id=${m.id} and status='sending'`;
+          const next = m.enrollmentId
+            ? await sql`select scheduled_at as "scheduledAt" from email_messages where enrollment_id=${m.enrollmentId} and status='scheduled' order by scheduled_at limit 1`
+            : [];
+          await sql`update prospects set status=case when status in('Nouveau','À contacter') then 'Relance' else status end,last_contact_at=now(),next_action=${next.length ? "Campagne active — prochaine relance automatique" : "Cycle marketing envoyé — attendre une réponse"},next_action_at=${next[0]?.scheduledAt || null},updated_at=now() where id=${m.prospectId}`;
+          await sql`insert into prospect_events(prospect_id,event_type,payload) values(${m.prospectId},'email_sent',${sql.json({ messageId: m.id, subject: m.subject, enrollmentId: m.enrollmentId, nextScheduledAt: next[0]?.scheduledAt || null })})`;
+        });
         sent++;
       } catch (e) {
         await db()`update email_messages set status='failed',error_code='provider_error',error_message=${e instanceof Error ? e.message : "provider_error"},updated_at=now() where id=${m.id}`;
@@ -82,7 +88,7 @@ export async function GET(req: NextRequest) {
           await sql`update email_messages set status='cancelled',updated_at=now() where enrollment_id in ${sql(changed.map((row: any) => row.id))} and status='scheduled'`;
         await sql`update email_messages set status='replied',replied_at=${item.receivedDateTime},updated_at=now() where id=(select id from email_messages where prospect_id=${p.id} and direction='outbound' and status in('sent','delivered') order by sent_at desc nulls last limit 1)`;
         await sql`insert into sales_tasks(prospect_id,message_id,task_type,title,priority,due_at,source) values(${p.id},${inbound[0].id},${decision.taskType},${decision.taskTitle},${decision.priority},now()+make_interval(days=>${decision.dueInDays}),'email_reply') on conflict(message_id,task_type) where message_id is not null do nothing`;
-        await sql`update prospects set do_not_contact=case when ${decision.category}='unsubscribe' then true else do_not_contact end,status=case when ${decision.category}='interested' then 'Relance' else status end,next_action=${decision.nextAction},next_action_at=now()+make_interval(days=>${decision.dueInDays}),last_contact_at=${item.receivedDateTime},updated_at=now() where id=${p.id}`;
+        await sql`update prospects set do_not_contact=case when ${decision.category}='unsubscribe' then true else do_not_contact end,status=case when ${decision.category}='interested' then 'Relance' when ${decision.category}='not_interested' then 'Perdu' else status end,score=least(100,score+case when ${decision.category}='interested' then 15 when ${decision.category}='callback' then 10 when ${decision.category}='information' then 8 when ${decision.category}='objection' then 4 else 0 end),next_action=${decision.nextAction},next_action_at=now()+make_interval(days=>${decision.dueInDays}),last_contact_at=${item.receivedDateTime},updated_at=now() where id=${p.id}`;
         await sql`insert into prospect_events(prospect_id,event_type,payload) values(${p.id},'email_reply_classified',${sql.json({ messageId: inbound[0].id, subject: item.subject, receivedAt: item.receivedDateTime, category: decision.category, confidence: decision.confidence, needsReview: decision.needsReview })})`;
         return inbound;
       });

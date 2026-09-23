@@ -21,6 +21,8 @@ export type IntelligenceProspect = {
   positiveCalls?: number;
   visits?: number;
   replies?: number;
+  outboundEmails?: number;
+  activeCampaign?: boolean;
   appointments?: number;
   openTasks?: number;
   preferredChannel?: string | null;
@@ -56,7 +58,9 @@ export function recommendationFor(p: IntelligenceProspect) {
     (age >= 14 ? 12 : age >= 7 ? 7 : age >= 3 ? 3 : 0) +
     ((p.openTasks || 0) > 0 ? 5 : 0);
   const quality = Math.min(10, (p.dataQualityScore || 0) * 0.1);
-  const priority = clamp(fit + engagement + urgency + quality);
+  const priority = clamp(
+    fit + engagement + urgency + quality - (p.activeCampaign && !p.replies ? 15 : 0),
+  );
   const hasPhone = Boolean(p.phone);
   const hasEmail = Boolean(p.email);
   const channel =
@@ -68,7 +72,9 @@ export function recommendationFor(p: IntelligenceProspect) {
         : "Visite terrain");
   const action =
     p.overriddenAction ||
-    (overdue
+    (p.activeCampaign && !p.replies
+      ? "Laisser la campagne travailler et surveiller une réponse"
+      : overdue
       ? "Traiter la relance en retard"
       : p.status === "Offre"
         ? "Appeler pour sécuriser la décision"
@@ -99,6 +105,7 @@ export function recommendationFor(p: IntelligenceProspect) {
     overdue ? "échéance dépassée" : "",
     fit >= 28 ? "profil compatible avec une flotte locale" : "",
     engagement >= 12 ? "signaux d’intérêt déjà détectés" : "",
+    p.activeCampaign ? "campagne marketing actuellement active" : "",
     (p.observedSample || 0) >= 5
       ? `conversion observée du secteur : ${Math.round((p.observedSuccessRate || 0) * 100)}%`
       : "",

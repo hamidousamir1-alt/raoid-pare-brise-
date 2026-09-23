@@ -29,6 +29,8 @@ export async function GET() {
       (select count(*)::int from call_logs c where c.prospect_id=p.id and c.outcome in ('interested','appointment')) as "positiveCalls",
       (select count(*)::int from field_visits v where v.prospect_id=p.id) as visits,
       (select count(*)::int from email_messages m where m.prospect_id=p.id and m.direction='inbound') as replies,
+      (select count(*)::int from email_messages m where m.prospect_id=p.id and m.direction='outbound' and m.status in('sent','delivered','replied')) as "outboundEmails",
+      exists(select 1 from email_enrollments e where e.prospect_id=p.id and e.status='active') as "activeCampaign",
       (select count(*)::int from appointments a where a.prospect_id=p.id and a.status not in ('cancelled','no_show')) as appointments,
       (select count(*)::int from sales_tasks t where t.prospect_id=p.id and t.status='open') as "openTasks",
       o.preferred_channel as "preferredChannel",o.recommended_action as "overriddenAction"
