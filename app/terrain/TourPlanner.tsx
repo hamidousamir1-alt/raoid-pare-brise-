@@ -27,6 +27,12 @@ type Prospect = {
   lastFieldVisitAt?: string | null;
   fieldVisitCount?: number;
   plannedRouteDate?: string | null;
+  companySize?: string;
+  verificationStatus?: string;
+  verificationConfidence?: number;
+  duplicateStatus?: string;
+  establishmentActive?: boolean | null;
+  recommendedAction?: string;
 };
 type Stop = Prospect & { priority: number; distance: number; reason: string };
 type Position = { latitude: number; longitude: number };
@@ -59,6 +65,19 @@ const maps = (p: Prospect) =>
   `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(p.address?.trim() || `${p.name}, ${p.zone || "Marseille"}, France`)}&travelmode=driving&dir_action=navigate`;
 const waze = (p: Prospect) =>
   `https://waze.com/ul?q=${encodeURIComponent(p.address?.trim() || `${p.name}, ${p.zone || "Marseille"}, France`)}&navigate=yes&utm_source=rapid_pare_brise_crm`;
+const completeRoute = (items: Prospect[]) => {
+  if (!items.length) return "#";
+  const destination = items[items.length - 1],
+    waypoints = items
+      .slice(0, -1)
+      .map(
+        (item) =>
+          item.address?.trim() ||
+          `${item.name}, ${item.zone || "Marseille"}, France`,
+      )
+      .join("|");
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination.address?.trim() || `${destination.name}, ${destination.zone || "Marseille"}, France`)}${waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : ""}&travelmode=driving`;
+};
 function freshness(p: Prospect) {
   if (!p.lastFieldVisitAt) return 18;
   const days = (Date.now() - new Date(p.lastFieldVisitAt).getTime()) / 86400000;
@@ -78,11 +97,28 @@ function accessValue(v = "À vérifier") {
 function commercialValue(p: Prospect) {
   const potential = p.potentialRevenue || 0,
     base = Math.min(55, (p.score || 50) * 0.42 + Math.log10(potential + 1) * 4),
+    sizeBonus = /TPE|PME/i.test(p.companySize || "")
+      ? 12
+      : /ETI|Grande/i.test(p.companySize || "")
+        ? -8
+        : 2,
+    trustBonus = Math.min(
+      12,
+      Math.max(0, Number(p.verificationConfidence) || 0) * 0.12,
+    ),
     insurance =
       p.insurance === "Forte" ? -14 : p.insurance === "Moyenne" ? -5 : 0;
   const planned =
     p.plannedRouteDate === new Date().toISOString().slice(0, 10) ? 45 : 0;
-  return base + accessValue(p.access) + freshness(p) + insurance + planned;
+  return (
+    base +
+    sizeBonus +
+    trustBonus +
+    accessValue(p.access) +
+    freshness(p) +
+    insurance +
+    planned
+  );
 }
 function orderNearest(items: Stop[], start: Position) {
   const left = [...items],
@@ -116,6 +152,7 @@ export default function TourPlanner() {
     [position, setPosition] = useState<Position | undefined>(),
     [bookedProspects, setBookedProspects] = useState<string[]>([]),
     [busy, setBusy] = useState("");
+  const [savedPlanId, setSavedPlanId] = useState("");
   const [recommendation, setRecommendation] = useState("");
   const [online, setOnline] = useState(true);
   const [offlinePending, setOfflinePending] = useState(0);
@@ -208,6 +245,9 @@ export default function TourPlanner() {
         (p) =>
           !p.doNotContact &&
           !["Perdu", "Gagné"].includes(p.status || "") &&
+          !["Introuvable", "À revoir"].includes(p.verificationStatus || "") &&
+          !(p.duplicateStatus || "").toLowerCase().includes("doublon") &&
+          p.establishmentActive !== false &&
           p.access !== "Difficile" &&
           !bookedProspects.includes(p.id) &&
           !excluded.includes(p.id) &&
@@ -282,6 +322,40 @@ export default function TourPlanner() {
           "Position non disponible. La tournée utilisera le centre de la zone.",
         ),
     );
+  }
+  async function saveRoute() {
+    if (!plan.length) return;
+    setBusy("save-route");
+    try {
+      const response = await fetch("/api/terrain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save_route",
+          zone: selectedZone,
+          estimatedKm: distance,
+          latitude: position?.latitude,
+          longitude: position?.longitude,
+          stops: plan.map((stop) => ({
+            prospectId: stop.id,
+            priority: stop.priority,
+            distance: stop.distance,
+          })),
+        }),
+      });
+      if (!response.ok) throw new Error();
+      const result = await response.json();
+      setSavedPlanId(result.planId);
+      setRecommendation(
+        "Tournée enregistrée : elle restera disponible sur le téléphone pendant vos déplacements.",
+      );
+    } catch {
+      setRecommendation(
+        "La tournée n’a pas pu être enregistrée. Le parcours reste utilisable sur cet appareil.",
+      );
+    } finally {
+      setBusy("");
+    }
   }
   async function outcome(s: Stop, value: string) {
     setBusy(s.id);
@@ -363,11 +437,11 @@ export default function TourPlanner() {
         </div>
         <a
           className="startTour"
-          href={plan[0] ? maps(plan[0]) : "#"}
+          href={completeRoute(plan)}
           target="_blank"
           rel="noopener noreferrer"
         >
-          Commencer la tournée
+          Ouvrir le parcours complet
         </a>
       </section>
       <div className="plannerbar mobilePlanner">
@@ -392,6 +466,16 @@ export default function TourPlanner() {
           </select>
         </label>
         <button onClick={locate}>⌖ Ma position</button>
+        <button
+          disabled={busy === "save-route" || !plan.length}
+          onClick={saveRoute}
+        >
+          {savedPlanId
+            ? "✓ Tournée enregistrée"
+            : busy === "save-route"
+              ? "Enregistrement…"
+              : "Enregistrer la tournée"}
+        </button>
         <span className="auto">
           {online ? "● En ligne" : "○ Hors connexion"}
           {offlinePending > 0 ? ` · ${offlinePending} à synchroniser` : ""}
@@ -421,6 +505,11 @@ export default function TourPlanner() {
                   <small>🚐 {s.fleet || "flotte à qualifier"}</small>
                   <small>⌖ ~{s.distance.toFixed(1)} km</small>
                   <small>{s.access || "accès à vérifier"}</small>
+                  <small>
+                    {s.verificationStatus || "à vérifier"} ·{" "}
+                    {s.verificationConfidence || 0}%
+                  </small>
+                  {s.companySize ? <small>{s.companySize}</small> : null}
                   {s.plannedRouteDate ===
                     new Date().toISOString().slice(0, 10) && (
                     <small>✓ sélection du jour</small>
