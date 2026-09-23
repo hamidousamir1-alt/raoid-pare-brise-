@@ -542,6 +542,7 @@ export default function ProspectManager() {
               <label>
                 Secteur
                 <input
+                  list="sector-presets"
                   value={editing.sector}
                   onChange={(e) =>
                     setEditing({ ...editing, sector: e.target.value })
@@ -551,6 +552,7 @@ export default function ProspectManager() {
               <label>
                 Zone
                 <input
+                  list="zone-presets"
                   value={editing.zone}
                   onChange={(e) =>
                     setEditing({ ...editing, zone: e.target.value })
@@ -579,6 +581,7 @@ export default function ProspectManager() {
               <label>
                 Ville
                 <input
+                  list="city-presets"
                   value={editing.city || ""}
                   onChange={(e) =>
                     setEditing({ ...editing, city: e.target.value })
@@ -642,6 +645,7 @@ export default function ProspectManager() {
               <label>
                 Flotte estimée
                 <input
+                  list="fleet-presets"
                   value={editing.fleet}
                   onChange={(e) =>
                     setEditing({ ...editing, fleet: e.target.value })
@@ -684,6 +688,7 @@ export default function ProspectManager() {
               <label>
                 Type de véhicules
                 <input
+                  list="vehicle-type-presets"
                   value={editing.fleetTypes || ""}
                   onChange={(e) =>
                     setEditing({ ...editing, fleetTypes: e.target.value })
@@ -770,6 +775,7 @@ export default function ProspectManager() {
               <label>
                 Fonction du contact
                 <input
+                  list="contact-role-presets"
                   value={editing.contactRole || ""}
                   onChange={(e) =>
                     setEditing({ ...editing, contactRole: e.target.value })
@@ -806,6 +812,7 @@ export default function ProspectManager() {
               <label>
                 Meilleur moment pour contacter
                 <input
+                  list="contact-time-presets"
                   value={editing.bestContactTime || ""}
                   onChange={(e) =>
                     setEditing({ ...editing, bestContactTime: e.target.value })
@@ -834,6 +841,7 @@ export default function ProspectManager() {
                       placeholder="Nom du contact"
                     />
                     <input
+                      list="contact-role-presets"
                       value={contact.role}
                       onChange={(e) =>
                         updateContact(index, { role: e.target.value })
@@ -1018,6 +1026,7 @@ export default function ProspectManager() {
               <label>
                 Prochaine action
                 <input
+                  list="next-action-presets"
                   value={editing.next}
                   onChange={(e) =>
                     setEditing({ ...editing, next: e.target.value })
@@ -1047,24 +1056,24 @@ export default function ProspectManager() {
               </label>
               <label className="full">
                 Processus de décision
-                <textarea
-                  rows={2}
+                <input
+                  list="decision-presets"
                   value={editing.decisionProcess || ""}
                   onChange={(e) =>
                     setEditing({ ...editing, decisionProcess: e.target.value })
                   }
-                  placeholder="Qui décide, qui valide, quelles étapes ?"
+                  placeholder="Choisir ou saisir le processus"
                 />
               </label>
               <label className="full">
                 Objections et freins identifiés
-                <textarea
-                  rows={2}
+                <input
+                  list="objection-presets"
                   value={editing.objections || ""}
                   onChange={(e) =>
                     setEditing({ ...editing, objections: e.target.value })
                   }
-                  placeholder="Prestataire actuel, assurance, tarif, disponibilité…"
+                  placeholder="Choisir ou saisir un frein"
                 />
               </label>
               <label className="full">
@@ -1098,6 +1107,43 @@ export default function ProspectManager() {
                         <option value="objection">Objection</option>
                         <option value="meeting_note">Compte rendu</option>
                       </select>
+                      <select
+                        value=""
+                        aria-label="Modèle de note"
+                        onChange={(event) => {
+                          if (event.target.value)
+                            setQuickNote(event.target.value);
+                        }}
+                      >
+                        <option value="">Préremplir la note…</option>
+                        <option value="Interlocuteur absent lors du passage.">
+                          Interlocuteur absent
+                        </option>
+                        <option value="Le décideur n’était pas disponible. Ses coordonnées restent à obtenir.">
+                          Décideur indisponible
+                        </option>
+                        <option value="L’entreprise possède une flotte de véhicules, taille exacte à confirmer.">
+                          Flotte à confirmer
+                        </option>
+                        <option value="L’entreprise travaille déjà avec un prestataire vitrage.">
+                          Prestataire existant
+                        </option>
+                        <option value="La gestion des sinistres vitrage passe actuellement par l’assurance.">
+                          Gestion par assurance
+                        </option>
+                        <option value="L’interlocuteur souhaite recevoir une présentation par e-mail.">
+                          Documentation demandée
+                        </option>
+                        <option value="L’interlocuteur est intéressé et souhaite convenir d’un rendez-vous.">
+                          Intéressé par un rendez-vous
+                        </option>
+                        <option value="Aucun besoin immédiat, mais l’entreprise accepte d’être recontactée ultérieurement.">
+                          À recontacter plus tard
+                        </option>
+                        <option value="L’entreprise ne souhaite pas être recontactée.">
+                          Refus définitif
+                        </option>
+                      </select>
                       <textarea
                         rows={3}
                         value={quickNote}
@@ -1105,6 +1151,7 @@ export default function ProspectManager() {
                         placeholder="Information obtenue, contexte, besoin précis…"
                       />
                       <input
+                        list="next-action-presets"
                         value={quickNextAction}
                         onChange={(event) =>
                           setQuickNextAction(event.target.value)
@@ -1272,6 +1319,162 @@ export default function ProspectManager() {
                   {!timeline.length && <p>Aucun historique enregistré.</p>}
                 </section>
               </div>
+              <datalist id="sector-presets">
+                {[
+                  "Garage / automobile",
+                  "Carrosserie",
+                  "Transport / logistique",
+                  "Livraison / messagerie",
+                  "BTP / travaux",
+                  "Plomberie / chauffage",
+                  "Électricité",
+                  "Nettoyage professionnel",
+                  "Paysagisme / espaces verts",
+                  "Sécurité",
+                  "Ambulance / transport sanitaire",
+                  "Taxi / VTC",
+                  "Location de véhicules",
+                  "Maintenance industrielle",
+                  "Commerce / distribution",
+                  "Collectivité / association",
+                ].map((value) => (
+                  <option value={value} key={value} />
+                ))}
+              </datalist>
+              <datalist id="zone-presets">
+                {[
+                  "Arnavaux",
+                  "Saint-Pierre",
+                  "Marseille 4/5/6",
+                  "Marseille Est",
+                  "Marseille Nord",
+                  "La Valentine",
+                  "La Capelette",
+                  "Vitrolles",
+                  "Marignane",
+                  "Aubagne",
+                  "Gémenos",
+                  "Aix-en-Provence / Les Milles",
+                ].map((value) => (
+                  <option value={value} key={value} />
+                ))}
+              </datalist>
+              <datalist id="city-presets">
+                {[
+                  "Marseille",
+                  "Aubagne",
+                  "Gémenos",
+                  "Vitrolles",
+                  "Marignane",
+                  "Aix-en-Provence",
+                  "Les Pennes-Mirabeau",
+                  "Septèmes-les-Vallons",
+                  "Plan-de-Cuques",
+                  "Allauch",
+                ].map((value) => (
+                  <option value={value} key={value} />
+                ))}
+              </datalist>
+              <datalist id="fleet-presets">
+                {[
+                  "1 à 3 véhicules",
+                  "4 à 9 véhicules",
+                  "10 à 19 véhicules",
+                  "20 à 49 véhicules",
+                  "50 véhicules et plus",
+                  "Flotte à confirmer",
+                ].map((value) => (
+                  <option value={value} key={value} />
+                ))}
+              </datalist>
+              <datalist id="vehicle-type-presets">
+                {[
+                  "Véhicules légers",
+                  "Utilitaires",
+                  "Utilitaires et véhicules légers",
+                  "Poids lourds",
+                  "Engins de chantier",
+                  "Deux-roues",
+                  "Flotte mixte",
+                ].map((value) => (
+                  <option value={value} key={value} />
+                ))}
+              </datalist>
+              <datalist id="contact-role-presets">
+                {[
+                  "Gérant",
+                  "Directeur",
+                  "Responsable de flotte",
+                  "Responsable d’exploitation",
+                  "Responsable administratif",
+                  "Responsable achats",
+                  "Responsable maintenance",
+                  "Chef d’agence",
+                  "Secrétariat",
+                  "Comptabilité",
+                  "Courtier / assureur",
+                ].map((value) => (
+                  <option value={value} key={value} />
+                ))}
+              </datalist>
+              <datalist id="contact-time-presets">
+                {[
+                  "Le matin avant 9 h",
+                  "Entre 9 h et 11 h 30",
+                  "Entre 12 h et 14 h",
+                  "Après 14 h",
+                  "Après 16 h",
+                  "En fin de journée",
+                  "À rappeler sur rendez-vous",
+                ].map((value) => (
+                  <option value={value} key={value} />
+                ))}
+              </datalist>
+              <datalist id="next-action-presets">
+                {[
+                  "Identifier le décideur",
+                  "Appeler pour convenir d’un rendez-vous",
+                  "Envoyer un e-mail de présentation",
+                  "Envoyer la documentation commerciale",
+                  "Relancer après le passage",
+                  "Relancer l’offre commerciale",
+                  "Rappeler à la date demandée",
+                  "Programmer un passage terrain",
+                  "Vérifier les coordonnées",
+                  "Aucune relance",
+                ].map((value) => (
+                  <option value={value} key={value} />
+                ))}
+              </datalist>
+              <datalist id="decision-presets">
+                {[
+                  "Décision du gérant",
+                  "Décision du responsable de flotte",
+                  "Validation direction puis comptabilité",
+                  "Validation siège / groupe",
+                  "Décision après comparaison de devis",
+                  "Décision avec l’assureur",
+                  "Processus à identifier",
+                ].map((value) => (
+                  <option value={value} key={value} />
+                ))}
+              </datalist>
+              <datalist id="objection-presets">
+                {[
+                  "Déjà engagé avec un prestataire",
+                  "Tout passe par l’assurance",
+                  "Entretien géré en interne",
+                  "Tarif jugé trop élevé",
+                  "Pas de besoin actuellement",
+                  "Flotte trop petite",
+                  "Décision prise par le siège",
+                  "Interlocuteur non décisionnaire",
+                  "À recontacter plus tard",
+                  "Aucune objection identifiée",
+                ].map((value) => (
+                  <option value={value} key={value} />
+                ))}
+              </datalist>
             </div>
             <div className="modalactions">
               {editing.id && (
