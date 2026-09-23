@@ -30,7 +30,8 @@ type TimelineItem = {
     | "offer"
     | "task"
     | "document"
-    | "service";
+    | "service"
+    | "note";
   title: string;
   detail: string;
   status: string;
@@ -111,6 +112,11 @@ export default function ProspectManager() {
     [editing, setEditing] = useState<Prospect | null>(null),
     [timeline, setTimeline] = useState<TimelineItem[]>([]),
     [timelineFilter, setTimelineFilter] = useState("all"),
+    [noteType, setNoteType] = useState("note"),
+    [quickNote, setQuickNote] = useState(""),
+    [quickNextAction, setQuickNextAction] = useState(""),
+    [quickNextDate, setQuickNextDate] = useState(""),
+    [noteBusy, setNoteBusy] = useState(false),
     [documents, setDocuments] = useState<ProspectDocument[]>([]),
     [appointments, setAppointments] = useState<ProspectAppointment[]>([]),
     [detailBusy, setDetailBusy] = useState(false),
@@ -256,6 +262,40 @@ export default function ProspectManager() {
         },
       ],
     });
+  }
+  async function saveQuickNote() {
+    if (!editing?.id || !quickNote.trim()) return;
+    setNoteBusy(true);
+    try {
+      const response = await fetch(`/api/prospects/${editing.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          noteType,
+          content: quickNote,
+          nextAction: quickNextAction,
+          nextActionAt: quickNextDate
+            ? new Date(quickNextDate).toISOString()
+            : null,
+        }),
+      });
+      if (!response.ok) throw new Error();
+      const detailResponse = await fetch(`/api/prospects/${editing.id}`, {
+        cache: "no-store",
+      });
+      if (detailResponse.ok) {
+        const detail = await detailResponse.json();
+        setEditing({ ...detail.item, contacts: detail.contacts || [] });
+        setTimeline(detail.timeline || []);
+      }
+      setQuickNote("");
+      setQuickNextAction("");
+      setQuickNextDate("");
+    } catch {
+      alert("La note n’a pas pu être enregistrée.");
+    } finally {
+      setNoteBusy(false);
+    }
   }
   function updateContact(index: number, patch: Partial<Contact>) {
     if (!editing) return;
@@ -1038,6 +1078,58 @@ export default function ProspectManager() {
                 />
               </label>
               <div className="full recordInsights">
+                {editing.id ? (
+                  <section className="quickActivity">
+                    <div className="sectionTitle">
+                      <div>
+                        <b>Ajouter une information</b>
+                        <small>Note structurée et suivi facultatif</small>
+                      </div>
+                    </div>
+                    <div className="quickActivityGrid">
+                      <select
+                        value={noteType}
+                        onChange={(event) => setNoteType(event.target.value)}
+                        aria-label="Type d’information"
+                      >
+                        <option value="note">Note commerciale</option>
+                        <option value="qualification">Qualification</option>
+                        <option value="need">Besoin identifié</option>
+                        <option value="objection">Objection</option>
+                        <option value="meeting_note">Compte rendu</option>
+                      </select>
+                      <textarea
+                        rows={3}
+                        value={quickNote}
+                        onChange={(event) => setQuickNote(event.target.value)}
+                        placeholder="Information obtenue, contexte, besoin précis…"
+                      />
+                      <input
+                        value={quickNextAction}
+                        onChange={(event) =>
+                          setQuickNextAction(event.target.value)
+                        }
+                        placeholder="Prochaine action facultative"
+                      />
+                      <input
+                        type="datetime-local"
+                        value={quickNextDate}
+                        onChange={(event) =>
+                          setQuickNextDate(event.target.value)
+                        }
+                        aria-label="Échéance de la prochaine action"
+                      />
+                      <button
+                        type="button"
+                        className="primary"
+                        disabled={noteBusy || !quickNote.trim()}
+                        onClick={saveQuickNote}
+                      >
+                        {noteBusy ? "Enregistrement…" : "Ajouter au dossier"}
+                      </button>
+                    </div>
+                  </section>
+                ) : null}
                 <section>
                   <div className="sectionTitle">
                     <div>
@@ -1118,6 +1210,7 @@ export default function ProspectManager() {
                       ["appointment", "RDV"],
                       ["offer", "Offres"],
                       ["task", "Actions"],
+                      ["note", "Notes"],
                     ].map(([value, label]) => (
                       <button
                         type="button"
@@ -1154,9 +1247,11 @@ export default function ProspectManager() {
                                         ? "▤"
                                         : item.category === "service"
                                           ? "◇"
-                                          : item.category === "task"
-                                            ? "✓"
-                                            : "•"}
+                                          : item.category === "note"
+                                            ? "+"
+                                            : item.category === "task"
+                                              ? "✓"
+                                              : "•"}
                           </span>
                           <div>
                             <header>

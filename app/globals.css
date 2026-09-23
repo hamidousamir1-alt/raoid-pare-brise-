@@ -724,6 +724,45 @@ h2 {
   text-transform: uppercase;
   color: #8a95a4;
 }
+.quickActivity {
+  background: #f8f9fb !important;
+  border: 1px solid #e5e9ef !important;
+}
+.quickActivityGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.quickActivityGrid textarea {
+  grid-column: 1/-1;
+  resize: vertical;
+}
+.quickActivityGrid select,
+.quickActivityGrid input,
+.quickActivityGrid textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #dce2e9;
+  border-radius: 9px;
+  background: #fff;
+  font: inherit;
+  font-size: 10px;
+}
+.quickActivityGrid button {
+  justify-self: start;
+}
+.timelineIcon.note {
+  background: #eef7f4;
+  color: #27725d;
+}
+@media (max-width: 650px) {
+  .quickActivityGrid {
+    grid-template-columns: 1fr;
+  }
+  .quickActivityGrid textarea {
+    grid-column: 1;
+  }
+}
 .strategy,
 .pipelineHero {
   border-radius: 19px;

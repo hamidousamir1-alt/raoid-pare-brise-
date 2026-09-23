@@ -71,6 +71,7 @@ export async function GET(
       messages,
       tasks,
       visits,
+      notes,
     ] = await Promise.all([
       db()`select id,event_type as "eventType",payload,created_at as "createdAt" from prospect_events where prospect_id=${id} order by created_at desc limit 100`,
       db()`select id,name,role,email,phone,is_decision_maker as "isDecisionMaker",is_primary as "isPrimary",preferred_channel as "preferredChannel",notes from prospect_contacts where prospect_id=${id} and deleted_at is null order by is_primary desc,created_at`,
@@ -83,6 +84,7 @@ export async function GET(
       db()`select id,direction,status,subject,scheduled_at as "scheduledAt",sent_at as "sentAt",replied_at as "repliedAt",created_at as "createdAt",reply_category as "replyCategory" from email_messages where prospect_id=${id} order by created_at desc limit 50`,
       db()`select id,title,task_type as "taskType",status,priority,due_at as "dueAt",completed_at as "completedAt",created_at as "createdAt" from sales_tasks where prospect_id=${id} order by created_at desc limit 50`,
       db()`select id,outcome,note,visited_at as "visitedAt" from field_visits where prospect_id=${id} order by visited_at desc limit 50`,
+      db()`select id,note_type as "noteType",content,next_action as "nextAction",next_action_at as "nextActionAt",created_at as "createdAt" from prospect_notes where prospect_id=${id} order by created_at desc limit 100`,
     ]);
     const timeline = [
       ...(events as any[]).map((event) => ({
@@ -168,6 +170,23 @@ export async function GET(
           serviceCase.scheduledAt ||
           serviceCase.requestedAt,
       })),
+      ...(notes as any[]).map((note) => ({
+        id: `note:${note.id}`,
+        category: "note",
+        title:
+          note.noteType === "qualification"
+            ? "Qualification commerciale"
+            : note.noteType === "need"
+              ? "Besoin identifié"
+              : note.noteType === "objection"
+                ? "Objection relevée"
+                : note.noteType === "meeting_note"
+                  ? "Compte rendu d’échange"
+                  : "Note commerciale",
+        detail: `${note.content}${note.nextAction ? ` · Suite : ${note.nextAction}` : ""}`,
+        status: note.nextActionAt ? "suivi planifié" : "information",
+        at: note.createdAt,
+      })),
     ]
       .filter((item) => item.at)
       .sort(
@@ -195,6 +214,7 @@ export async function GET(
         messages,
         tasks,
         visits,
+        notes,
         timeline,
         activitySummary: {
           total: timeline.length,
@@ -211,6 +231,81 @@ export async function GET(
   } catch {
     return NextResponse.json(
       { error: "database_unavailable" },
+      { status: 503, headers: noStore },
+    );
+  }
+}
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const denied = await guard();
+  if (denied) return denied;
+  const { id } = await params;
+  if (!UUID.test(id))
+    return NextResponse.json(
+      { error: "invalid_id" },
+      { status: 400, headers: noStore },
+    );
+  let x: any;
+  try {
+    x = await req.json();
+  } catch {
+    return NextResponse.json(
+      { error: "invalid_request" },
+      { status: 400, headers: noStore },
+    );
+  }
+  const noteTypes = new Set([
+      "note",
+      "qualification",
+      "need",
+      "objection",
+      "meeting_note",
+    ]),
+    noteType = String(x.noteType || "note"),
+    content = String(x.content || "")
+      .trim()
+      .slice(0, 5000),
+    nextAction = String(x.nextAction || "")
+      .trim()
+      .slice(0, 500),
+    nextActionAt = x.nextActionAt ? new Date(x.nextActionAt) : null;
+  if (
+    !noteTypes.has(noteType) ||
+    !content ||
+    (nextActionAt && Number.isNaN(nextActionAt.getTime()))
+  )
+    return NextResponse.json(
+      { error: "invalid_note" },
+      { status: 400, headers: noStore },
+    );
+  try {
+    const result = await db().begin(async (sql) => {
+      const note =
+        await sql`insert into prospect_notes(prospect_id,note_type,content,next_action,next_action_at) select id,${noteType},${content},${nextAction || null},${nextActionAt?.toISOString() || null} from prospects where id=${id} and deleted_at is null returning id`;
+      if (!note.length) return [];
+      if (nextAction) {
+        const due = nextActionAt?.toISOString() || new Date().toISOString();
+        await sql`insert into sales_tasks(prospect_id,task_type,title,priority,due_at,source) values(${id},'note_follow_up',${nextAction},75,${due},'prospect_note')`;
+        await sql`update prospects set next_action=${nextAction},next_action_at=${due},status=case when status in ('Nouveau','À contacter') then 'Relance' else status end,updated_at=now() where id=${id}`;
+      } else await sql`update prospects set updated_at=now() where id=${id}`;
+      await sql`insert into prospect_events(prospect_id,event_type,payload) values(${id},'commercial_note_added',${sql.json({ noteId: note[0].id, noteType, hasFollowUp: Boolean(nextAction) })})`;
+      return note;
+    });
+    const created = result as Array<{ id: string }>;
+    return created.length
+      ? NextResponse.json(
+          { ok: true, id: created[0].id },
+          { status: 201, headers: noStore },
+        )
+      : NextResponse.json(
+          { error: "not_found" },
+          { status: 404, headers: noStore },
+        );
+  } catch {
+    return NextResponse.json(
+      { error: "note_not_saved" },
       { status: 503, headers: noStore },
     );
   }
