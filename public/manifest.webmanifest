@@ -1,1 +1,34 @@
-{"name":"Rapid Pare-Brise CRM","short_name":"Rapid PB","description":"CRM commercial B2B Rapid Pare-Brise","start_url":"/","display":"standalone","background_color":"#07111f","theme_color":"#07111f","lang":"fr","icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
+{
+  "name": "Rapid Pare-Brise CRM",
+  "short_name": "Rapid PB",
+  "description": "CRM commercial B2B Rapid Pare-Brise",
+  "start_url": "/terrain",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#07111f",
+  "theme_color": "#07111f",
+  "lang": "fr",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Tournée du jour", "short_name": "Terrain", "url": "/terrain" },
+    {
+      "name": "Actions prioritaires",
+      "short_name": "Actions",
+      "url": "/actions"
+    },
+    {
+      "name": "Nouveau prospect",
+      "short_name": "Prospect",
+      "url": "/prospection"
+    }
+  ]
+}
