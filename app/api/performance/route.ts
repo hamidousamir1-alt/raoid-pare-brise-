@@ -22,7 +22,7 @@ export async function GET() {
   const denied = await guard();
   if (denied) return denied;
   try {
-    const [funnel, activity, revenue, emails, calls, rankings, risks, goals] =
+    const [funnel, activity, revenue, emails, calls, rankings, risks, goals, campaignImpact] =
       await Promise.all([
         db()`select count(*)::int as total,count(*) filter(where status in ('Qualifié','Relance','RDV','Offre','Gagné'))::int as qualified,count(*) filter(where status in ('RDV','Offre','Gagné'))::int as appointments,count(*) filter(where status in ('Offre','Gagné'))::int as offers,count(*) filter(where status='Gagné')::int as won,count(*) filter(where status='Perdu')::int as lost from prospects where deleted_at is null`,
         db()`select (select count(*) from call_logs where started_at>=date_trunc('month',now()))::int as calls,(select count(*) from appointments where created_at>=date_trunc('month',now()))::int as appointments,(select count(*) from field_visits where visited_at>=date_trunc('month',now()))::int as visits,(select count(*) from commercial_offers where created_at>=date_trunc('month',now()))::int as offers,(select count(*) from prospects where status='Gagné' and updated_at>=date_trunc('month',now()))::int as partners`,
@@ -32,6 +32,7 @@ export async function GET() {
         db()`select coalesce(nullif(sector,''),'Non renseigné') as label,count(*)::int as prospects,count(*) filter(where status='Gagné')::int as won,coalesce(sum(generated_revenue),0)::float8 as revenue from prospects where deleted_at is null group by 1 order by revenue desc,won desc,prospects desc limit 8`,
         db()`select count(*) filter(where next_action_at<now() and status not in ('Gagné','Perdu'))::int as overdue,count(*) filter(where updated_at<now()-make_interval(days=>coalesce((select numeric_value from automation_settings where setting_key='stale_opportunity'),14)) and status not in ('Gagné','Perdu'))::int as stale,count(*) filter(where data_quality_score<70)::int as incomplete,(select count(*) from commercial_offers where status in ('sent','viewed') and valid_until<=current_date+3)::int as "urgentOffers" from prospects where deleted_at is null`,
         db()`select revenue_target as "revenueTarget",calls_target as "callsTarget",appointments_target as "appointmentsTarget",partners_target as "partnersTarget" from performance_goals where period_month=date_trunc('month',current_date)::date`,
+        db()`with latest_campaign as(select distinct on(e.prospect_id) e.prospect_id,e.enrolled_at from email_enrollments e join prospect_events pe on pe.prospect_id=e.prospect_id and pe.event_type='email_campaign_started' and pe.payload->>'enrollmentId'=e.id::text order by e.prospect_id,e.enrolled_at desc) select count(*)::int as recipients,count(*) filter(where exists(select 1 from appointments a where a.prospect_id=lc.prospect_id and a.created_at between lc.enrolled_at and lc.enrolled_at+interval '90 days' and coalesce(a.status,'') not in('cancelled','no_show')))::int as appointments,count(*) filter(where exists(select 1 from commercial_offers o where o.prospect_id=lc.prospect_id and o.created_at between lc.enrolled_at and lc.enrolled_at+interval '90 days'))::int as offers,count(*) filter(where p.status='Gagné' and p.updated_at between lc.enrolled_at and lc.enrolled_at+interval '90 days')::int as won,coalesce(sum(p.generated_revenue) filter(where p.status='Gagné' and p.updated_at between lc.enrolled_at and lc.enrolled_at+interval '90 days'),0)::float8 as "generatedRevenue" from latest_campaign lc join prospects p on p.id=lc.prospect_id and p.deleted_at is null`,
       ]);
     const f = funnel[0],
       a = activity[0],
@@ -105,6 +106,7 @@ export async function GET() {
           appointmentsTarget: 0,
           partnersTarget: 0,
         },
+        campaignImpact: campaignImpact[0],
         recommendations,
       },
       { headers: noStore },

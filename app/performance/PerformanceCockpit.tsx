@@ -17,6 +17,13 @@ type Data = {
     appointments: number;
     unanswered: number;
   };
+  campaignImpact: {
+    recipients: number;
+    appointments: number;
+    offers: number;
+    won: number;
+    generatedRevenue: number;
+  };
   rankings: Array<{
     label: string;
     prospects: number;
@@ -122,7 +129,7 @@ export default function PerformanceCockpit() {
     <div className="performanceCockpit">
       <style>
         {
-          ".performanceCockpit{display:grid;gap:18px}.perfHead{display:flex;justify-content:space-between;align-items:flex-end;gap:18px}.perfHead h1{margin:4px 0 7px}.perfPanel,.goalCard,.metricCard{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:19px}.perfHero{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;background:linear-gradient(120deg,#07111f,#172536);color:#fff;border-radius:20px;padding:26px}.perfHero p{color:#aeb8c5;line-height:1.6}.heroNumbers{display:grid;grid-template-columns:1fr 1fr;gap:10px}.heroNumbers div{padding:15px;background:rgba(255,255,255,.06);border-radius:11px}.heroNumbers small,.heroNumbers b{display:block}.heroNumbers small{color:#aeb8c5;font-size:8px}.heroNumbers b{font-size:21px;margin-top:6px}.goalGrid,.metricGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.goalCard small,.metricCard small{display:block;color:#778496;font-size:9px}.goalCard b,.metricCard b{display:block;font-size:22px;margin:7px 0}.progress{height:7px;background:#edf0f3;border-radius:8px;overflow:hidden}.progress i{display:block;height:100%;background:#ef3340}.goalCard em{display:block;margin-top:7px;color:#718094;font-size:9px}.perfTwo{display:grid;grid-template-columns:1fr 1fr;gap:18px}.funnelLine,.rankingLine{display:grid;grid-template-columns:110px 1fr 48px;align-items:center;gap:10px;padding:9px 0}.funnelLine span,.rankingLine span{font-size:11px}.bar{height:8px;background:#eef1f4;border-radius:8px;overflow:hidden}.bar i{display:block;height:100%;background:#ef3340}.funnelLine b,.rankingLine b{text-align:right;font-size:11px}.recommendation{padding:13px 0;border-top:1px solid #edf0f4}.recommendation:first-of-type{border-top:0}.recommendation header{display:flex;justify-content:space-between;gap:10px}.recommendation p{color:#687587;font-size:11px;line-height:1.5}.recommendation a{font-size:10px}.risk{color:#c12b36}.good{color:#287141}.goalForm{display:grid;grid-template-columns:repeat(4,1fr) auto;gap:10px;align-items:end}.goalForm label{display:grid;gap:5px;font-size:9px;color:#687587}.goalForm input{padding:9px;border:1px solid #dce2e9;border-radius:8px;width:100%}@media(max-width:900px){.perfHero,.perfTwo{grid-template-columns:1fr}.goalGrid,.metricGrid{grid-template-columns:1fr 1fr}.goalForm{grid-template-columns:1fr 1fr}.perfHead{align-items:flex-start;flex-direction:column}}"
+          ".performanceCockpit{display:grid;gap:18px}.perfHead{display:flex;justify-content:space-between;align-items:flex-end;gap:18px}.perfHead h1{margin:4px 0 7px}.perfPanel,.goalCard,.metricCard{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:19px}.perfHero{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;background:linear-gradient(120deg,#07111f,#172536);color:#fff;border-radius:20px;padding:26px}.perfHero p{color:#aeb8c5;line-height:1.6}.heroNumbers{display:grid;grid-template-columns:1fr 1fr;gap:10px}.heroNumbers div{padding:15px;background:rgba(255,255,255,.06);border-radius:11px}.heroNumbers small,.heroNumbers b{display:block}.heroNumbers small{color:#aeb8c5;font-size:8px}.heroNumbers b{font-size:21px;margin-top:6px}.goalGrid,.metricGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.goalCard small,.metricCard small{display:block;color:#778496;font-size:9px}.goalCard b,.metricCard b{display:block;font-size:22px;margin:7px 0}.campaignImpactGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:15px}.campaignImpactGrid div{padding:13px;background:#f6f8fa;border-radius:10px}.campaignImpactGrid small,.campaignImpactGrid b{display:block}.campaignImpactGrid small{font-size:8px;color:#778496}.campaignImpactGrid b{font-size:18px;margin-top:6px}.progress{height:7px;background:#edf0f3;border-radius:8px;overflow:hidden}.progress i{display:block;height:100%;background:#ef3340}.goalCard em{display:block;margin-top:7px;color:#718094;font-size:9px}.perfTwo{display:grid;grid-template-columns:1fr 1fr;gap:18px}.funnelLine,.rankingLine{display:grid;grid-template-columns:110px 1fr 48px;align-items:center;gap:10px;padding:9px 0}.funnelLine span,.rankingLine span{font-size:11px}.bar{height:8px;background:#eef1f4;border-radius:8px;overflow:hidden}.bar i{display:block;height:100%;background:#ef3340}.funnelLine b,.rankingLine b{text-align:right;font-size:11px}.recommendation{padding:13px 0;border-top:1px solid #edf0f4}.recommendation:first-of-type{border-top:0}.recommendation header{display:flex;justify-content:space-between;gap:10px}.recommendation p{color:#687587;font-size:11px;line-height:1.5}.recommendation a{font-size:10px}.risk{color:#c12b36}.good{color:#287141}.goalForm{display:grid;grid-template-columns:repeat(4,1fr) auto;gap:10px;align-items:end}.goalForm label{display:grid;gap:5px;font-size:9px;color:#687587}.goalForm input{padding:9px;border:1px solid #dce2e9;border-radius:8px;width:100%}@media(max-width:900px){.perfHero,.perfTwo{grid-template-columns:1fr}.goalGrid,.metricGrid{grid-template-columns:1fr 1fr}.campaignImpactGrid{grid-template-columns:1fr 1fr}.goalForm{grid-template-columns:1fr 1fr}.perfHead{align-items:flex-start;flex-direction:column}}"
         }{" "}
       </style>
       <header className="perfHead">
@@ -239,6 +246,18 @@ export default function PerformanceCockpit() {
           </b>
           <span>{data.risks.stale} dossier(s) inactif(s)</span>
         </article>
+      </section>
+      <section className="perfPanel">
+        <p className="eyebrow">IMPACT MAILING • 90 JOURS</p>
+        <h2>Ce que les campagnes nourrissent commercialement</h2>
+        <p className="muted">Mesure d’influence : chaque entreprise est rattachée à sa campagne la plus récente avant le résultat, sans double comptage.</p>
+        <div className="campaignImpactGrid">
+          <div><small>ENTREPRISES CIBLÉES</small><b>{data.campaignImpact.recipients}</b></div>
+          <div><small>RENDEZ-VOUS</small><b>{data.campaignImpact.appointments}</b></div>
+          <div><small>OFFRES</small><b>{data.campaignImpact.offers}</b></div>
+          <div><small>PARTENAIRES GAGNÉS</small><b>{data.campaignImpact.won}</b></div>
+          <div><small>CA GÉNÉRÉ</small><b>{money(data.campaignImpact.generatedRevenue)}</b></div>
+        </div>
       </section>
       <section className="perfTwo">
         <article className="perfPanel">
