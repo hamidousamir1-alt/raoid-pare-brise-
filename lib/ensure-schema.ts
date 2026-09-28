@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "./db";
 import { fullSchemaSql } from "./full-schema";
 
-const schemaVersion = 1;
+const schemaVersion = 2;
 let schemaPromise: Promise<void> | null = null;
 
 export function ensureCrmSchema() {
@@ -21,4 +21,3 @@ export function ensureCrmSchema() {
     });
   return schemaPromise;
 }
-
