@@ -1,1 +1,8 @@
-import Link from'next/link';import PerformanceClient from'./PerformanceClient';export default function Performance(){return <main className="subpage"><div className="topline"><div><p className="eyebrow">PERFORMANCE • RESPONSABLE COMMERCIAL</p><h1>Contribution & performance</h1><p className="muted">Mesure ce que l’activité commerciale apporte réellement à l’entreprise et où concentrer les prochains efforts.</p></div><Link href="/" className="back">← Tableau de bord</Link></div><PerformanceClient/></main>}
+import PerformanceCockpit from "./PerformanceCockpit";
+export default function Performance() {
+  return (
+    <main className="subpage">
+      <PerformanceCockpit />
+    </main>
+  );
+}
