@@ -24,6 +24,19 @@ type Data = {
     won: number;
     generatedRevenue: number;
   };
+  acquisition: {
+    hourlyCost: number;
+    kilometerCost: number;
+    fieldVisitMinutes: number;
+    automatedEmailMinutes: number;
+    hours: number;
+    km: number;
+    partners: number;
+    revenue: number;
+    estimatedCost: number;
+    cac: number | null;
+    roi: number | null;
+  };
   rankings: Array<{
     label: string;
     prospects: number;
@@ -61,6 +74,8 @@ export default function PerformanceCockpit() {
     partnersTarget: 0,
   });
   const [editing, setEditing] = useState(false);
+  const [editingCosts, setEditingCosts] = useState(false);
+  const [costs, setCosts] = useState({ hourlyCost: 25, kilometerCost: 0.6, fieldVisitMinutes: 15, automatedEmailMinutes: 1 });
   const [error, setError] = useState("");
   async function load() {
     try {
@@ -73,6 +88,7 @@ export default function PerformanceCockpit() {
       const payload = (await response.json()) as Data;
       setData(payload);
       setGoals(payload.goals);
+      setCosts({ hourlyCost: payload.acquisition.hourlyCost, kilometerCost: payload.acquisition.kilometerCost, fieldVisitMinutes: payload.acquisition.fieldVisitMinutes, automatedEmailMinutes: payload.acquisition.automatedEmailMinutes });
       setError("");
     } catch {
       setError("Le cockpit sera disponible après la mise à jour de la base.");
@@ -93,6 +109,13 @@ export default function PerformanceCockpit() {
       return;
     }
     setEditing(false);
+    await load();
+  }
+  async function saveCosts(event: React.FormEvent) {
+    event.preventDefault();
+    const response = await fetch("/api/performance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_costs", ...costs }) });
+    if (!response.ok) { alert("Les hypothèses de coût n’ont pas pu être enregistrées."); return; }
+    setEditingCosts(false);
     await load();
   }
   if (!data)
@@ -129,7 +152,7 @@ export default function PerformanceCockpit() {
     <div className="performanceCockpit">
       <style>
         {
-          ".performanceCockpit{display:grid;gap:18px}.perfHead{display:flex;justify-content:space-between;align-items:flex-end;gap:18px}.perfHead h1{margin:4px 0 7px}.perfPanel,.goalCard,.metricCard{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:19px}.perfHero{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;background:linear-gradient(120deg,#07111f,#172536);color:#fff;border-radius:20px;padding:26px}.perfHero p{color:#aeb8c5;line-height:1.6}.heroNumbers{display:grid;grid-template-columns:1fr 1fr;gap:10px}.heroNumbers div{padding:15px;background:rgba(255,255,255,.06);border-radius:11px}.heroNumbers small,.heroNumbers b{display:block}.heroNumbers small{color:#aeb8c5;font-size:8px}.heroNumbers b{font-size:21px;margin-top:6px}.goalGrid,.metricGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.goalCard small,.metricCard small{display:block;color:#778496;font-size:9px}.goalCard b,.metricCard b{display:block;font-size:22px;margin:7px 0}.campaignImpactGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:15px}.campaignImpactGrid div{padding:13px;background:#f6f8fa;border-radius:10px}.campaignImpactGrid small,.campaignImpactGrid b{display:block}.campaignImpactGrid small{font-size:8px;color:#778496}.campaignImpactGrid b{font-size:18px;margin-top:6px}.progress{height:7px;background:#edf0f3;border-radius:8px;overflow:hidden}.progress i{display:block;height:100%;background:#ef3340}.goalCard em{display:block;margin-top:7px;color:#718094;font-size:9px}.perfTwo{display:grid;grid-template-columns:1fr 1fr;gap:18px}.funnelLine,.rankingLine{display:grid;grid-template-columns:110px 1fr 48px;align-items:center;gap:10px;padding:9px 0}.funnelLine span,.rankingLine span{font-size:11px}.bar{height:8px;background:#eef1f4;border-radius:8px;overflow:hidden}.bar i{display:block;height:100%;background:#ef3340}.funnelLine b,.rankingLine b{text-align:right;font-size:11px}.recommendation{padding:13px 0;border-top:1px solid #edf0f4}.recommendation:first-of-type{border-top:0}.recommendation header{display:flex;justify-content:space-between;gap:10px}.recommendation p{color:#687587;font-size:11px;line-height:1.5}.recommendation a{font-size:10px}.risk{color:#c12b36}.good{color:#287141}.goalForm{display:grid;grid-template-columns:repeat(4,1fr) auto;gap:10px;align-items:end}.goalForm label{display:grid;gap:5px;font-size:9px;color:#687587}.goalForm input{padding:9px;border:1px solid #dce2e9;border-radius:8px;width:100%}@media(max-width:900px){.perfHero,.perfTwo{grid-template-columns:1fr}.goalGrid,.metricGrid{grid-template-columns:1fr 1fr}.campaignImpactGrid{grid-template-columns:1fr 1fr}.goalForm{grid-template-columns:1fr 1fr}.perfHead{align-items:flex-start;flex-direction:column}}"
+          ".performanceCockpit{display:grid;gap:18px}.perfHead{display:flex;justify-content:space-between;align-items:flex-end;gap:18px}.perfHead h1{margin:4px 0 7px}.headActions{display:flex;gap:8px;flex-wrap:wrap}.perfPanel,.goalCard,.metricCard{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:19px}.perfHero{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;background:linear-gradient(120deg,#07111f,#172536);color:#fff;border-radius:20px;padding:26px}.perfHero p{color:#aeb8c5;line-height:1.6}.heroNumbers{display:grid;grid-template-columns:1fr 1fr;gap:10px}.heroNumbers div{padding:15px;background:rgba(255,255,255,.06);border-radius:11px}.heroNumbers small,.heroNumbers b{display:block}.heroNumbers small{color:#aeb8c5;font-size:8px}.heroNumbers b{font-size:21px;margin-top:6px}.goalGrid,.metricGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.goalCard small,.metricCard small{display:block;color:#778496;font-size:9px}.goalCard b,.metricCard b{display:block;font-size:22px;margin:7px 0}.campaignImpactGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:15px}.campaignImpactGrid div{padding:13px;background:#f6f8fa;border-radius:10px}.campaignImpactGrid small,.campaignImpactGrid b{display:block}.campaignImpactGrid small{font-size:8px;color:#778496}.campaignImpactGrid b{font-size:18px;margin-top:6px}.progress{height:7px;background:#edf0f3;border-radius:8px;overflow:hidden}.progress i{display:block;height:100%;background:#ef3340}.goalCard em{display:block;margin-top:7px;color:#718094;font-size:9px}.perfTwo{display:grid;grid-template-columns:1fr 1fr;gap:18px}.funnelLine,.rankingLine{display:grid;grid-template-columns:110px 1fr 48px;align-items:center;gap:10px;padding:9px 0}.funnelLine span,.rankingLine span{font-size:11px}.bar{height:8px;background:#eef1f4;border-radius:8px;overflow:hidden}.bar i{display:block;height:100%;background:#ef3340}.funnelLine b,.rankingLine b{text-align:right;font-size:11px}.recommendation{padding:13px 0;border-top:1px solid #edf0f4}.recommendation:first-of-type{border-top:0}.recommendation header{display:flex;justify-content:space-between;gap:10px}.recommendation p{color:#687587;font-size:11px;line-height:1.5}.recommendation a{font-size:10px}.risk{color:#c12b36}.good{color:#287141}.goalForm{display:grid;grid-template-columns:repeat(4,1fr) auto;gap:10px;align-items:end}.goalForm label{display:grid;gap:5px;font-size:9px;color:#687587}.goalForm input{padding:9px;border:1px solid #dce2e9;border-radius:8px;width:100%}@media(max-width:900px){.perfHero,.perfTwo{grid-template-columns:1fr}.goalGrid,.metricGrid{grid-template-columns:1fr 1fr}.campaignImpactGrid{grid-template-columns:1fr 1fr}.goalForm{grid-template-columns:1fr 1fr}.perfHead{align-items:flex-start;flex-direction:column}}"
         }{" "}
       </style>
       <header className="perfHead">
@@ -141,9 +164,7 @@ export default function PerformanceCockpit() {
             chiffre d’affaires réel.
           </p>
         </div>
-        <button onClick={() => setEditing(!editing)}>
-          {editing ? "Fermer" : "Modifier les objectifs"}
-        </button>
+        <div className="headActions"><button onClick={() => setEditingCosts(!editingCosts)}>{editingCosts ? "Fermer les coûts" : "Hypothèses de coût"}</button><button onClick={() => setEditing(!editing)}>{editing ? "Fermer" : "Modifier les objectifs"}</button></div>
       </header>
       {editing && (
         <form className="perfPanel goalForm" onSubmit={saveGoals}>
@@ -166,6 +187,15 @@ export default function PerformanceCockpit() {
               />
             </label>
           ))}
+          <button className="primary">Enregistrer</button>
+        </form>
+      )}
+      {editingCosts && (
+        <form className="perfPanel goalForm" onSubmit={saveCosts}>
+          <label>Coût horaire €<input type="number" min="0" step="0.01" value={costs.hourlyCost} onChange={(e) => setCosts((old) => ({ ...old, hourlyCost: Number(e.target.value) }))} /></label>
+          <label>Coût kilométrique €<input type="number" min="0" step="0.01" value={costs.kilometerCost} onChange={(e) => setCosts((old) => ({ ...old, kilometerCost: Number(e.target.value) }))} /></label>
+          <label>Minutes par visite<input type="number" min="0" step="1" value={costs.fieldVisitMinutes} onChange={(e) => setCosts((old) => ({ ...old, fieldVisitMinutes: Number(e.target.value) }))} /></label>
+          <label>Minutes par e-mail automatisé<input type="number" min="0" step="0.1" value={costs.automatedEmailMinutes} onChange={(e) => setCosts((old) => ({ ...old, automatedEmailMinutes: Number(e.target.value) }))} /></label>
           <button className="primary">Enregistrer</button>
         </form>
       )}
@@ -246,6 +276,18 @@ export default function PerformanceCockpit() {
           </b>
           <span>{data.risks.stale} dossier(s) inactif(s)</span>
         </article>
+      </section>
+      <section className="perfPanel">
+        <p className="eyebrow">RENTABILITÉ COMMERCIALE • CE MOIS</p>
+        <h2>Coût d’acquisition et retour estimé</h2>
+        <p className="muted">Estimation transparente fondée sur les appels, rendez-vous, visites, kilomètres et e-mails enregistrés. Les hypothèses restent modifiables.</p>
+        <div className="campaignImpactGrid">
+          <div><small>COÛT COMMERCIAL ESTIMÉ</small><b>{money(data.acquisition.estimatedCost)}</b></div>
+          <div><small>COÛT PAR PARTENAIRE</small><b>{data.acquisition.cac === null ? "—" : money(data.acquisition.cac)}</b></div>
+          <div><small>RETOUR ESTIMÉ</small><b>{data.acquisition.roi === null ? "—" : `${Math.round(data.acquisition.roi)} %`}</b></div>
+          <div><small>TEMPS VALORISÉ</small><b>{Number(data.acquisition.hours).toFixed(1)} h</b></div>
+          <div><small>KILOMÈTRES TERRAIN</small><b>{Number(data.acquisition.km).toFixed(1)} km</b></div>
+        </div>
       </section>
       <section className="perfPanel">
         <p className="eyebrow">IMPACT MAILING • 90 JOURS</p>

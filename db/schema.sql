@@ -306,6 +306,15 @@ CREATE TABLE IF NOT EXISTS performance_goals(
   partners_target integer NOT NULL DEFAULT 0 CHECK(partners_target >= 0),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS commercial_cost_settings(
+  id boolean PRIMARY KEY DEFAULT true CHECK(id),
+  hourly_cost numeric(8,2) NOT NULL DEFAULT 25 CHECK(hourly_cost>=0),
+  kilometer_cost numeric(8,2) NOT NULL DEFAULT 0.60 CHECK(kilometer_cost>=0),
+  field_visit_minutes integer NOT NULL DEFAULT 15 CHECK(field_visit_minutes BETWEEN 0 AND 480),
+  automated_email_minutes numeric(6,2) NOT NULL DEFAULT 1 CHECK(automated_email_minutes BETWEEN 0 AND 60),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO commercial_cost_settings(id) VALUES(true) ON CONFLICT(id) DO NOTHING;
 CREATE TABLE IF NOT EXISTS automation_settings(setting_key text PRIMARY KEY,label text NOT NULL,category text NOT NULL,enabled boolean NOT NULL DEFAULT true,numeric_value integer,unit text,description text,updated_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS automation_audit(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),setting_key text NOT NULL REFERENCES automation_settings(setting_key) ON DELETE RESTRICT,previous_value jsonb NOT NULL,new_value jsonb NOT NULL,changed_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS automation_audit_recent_idx ON automation_audit(changed_at DESC);

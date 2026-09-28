@@ -18,11 +18,16 @@ async function guard() {
     );
   return null;
 }
+async function ensureCostSettings() {
+  await db()`create table if not exists commercial_cost_settings(id boolean primary key default true check(id),hourly_cost numeric(8,2) not null default 25 check(hourly_cost>=0),kilometer_cost numeric(8,2) not null default 0.60 check(kilometer_cost>=0),field_visit_minutes integer not null default 15 check(field_visit_minutes between 0 and 480),automated_email_minutes numeric(6,2) not null default 1 check(automated_email_minutes between 0 and 60),updated_at timestamptz not null default now())`;
+  await db()`insert into commercial_cost_settings(id) values(true) on conflict(id) do nothing`;
+}
 export async function GET() {
   const denied = await guard();
   if (denied) return denied;
   try {
-    const [funnel, activity, revenue, emails, calls, rankings, risks, goals, campaignImpact] =
+    await ensureCostSettings();
+    const [funnel, activity, revenue, emails, calls, rankings, risks, goals, campaignImpact, acquisition] =
       await Promise.all([
         db()`select count(*)::int as total,count(*) filter(where status in ('Qualifié','Relance','RDV','Offre','Gagné'))::int as qualified,count(*) filter(where status in ('RDV','Offre','Gagné'))::int as appointments,count(*) filter(where status in ('Offre','Gagné'))::int as offers,count(*) filter(where status='Gagné')::int as won,count(*) filter(where status='Perdu')::int as lost from prospects where deleted_at is null`,
         db()`select (select count(*) from call_logs where started_at>=date_trunc('month',now()))::int as calls,(select count(*) from appointments where created_at>=date_trunc('month',now()))::int as appointments,(select count(*) from field_visits where visited_at>=date_trunc('month',now()))::int as visits,(select count(*) from commercial_offers where created_at>=date_trunc('month',now()))::int as offers,(select count(*) from prospects where status='Gagné' and updated_at>=date_trunc('month',now()))::int as partners`,
@@ -33,12 +38,17 @@ export async function GET() {
         db()`select count(*) filter(where next_action_at<now() and status not in ('Gagné','Perdu'))::int as overdue,count(*) filter(where updated_at<now()-make_interval(days=>coalesce((select numeric_value from automation_settings where setting_key='stale_opportunity'),14)) and status not in ('Gagné','Perdu'))::int as stale,count(*) filter(where data_quality_score<70)::int as incomplete,(select count(*) from commercial_offers where status in ('sent','viewed') and valid_until<=current_date+3)::int as "urgentOffers" from prospects where deleted_at is null`,
         db()`select revenue_target as "revenueTarget",calls_target as "callsTarget",appointments_target as "appointmentsTarget",partners_target as "partnersTarget" from performance_goals where period_month=date_trunc('month',current_date)::date`,
         db()`with latest_campaign as(select distinct on(e.prospect_id) e.prospect_id,e.enrolled_at from email_enrollments e join prospect_events pe on pe.prospect_id=e.prospect_id and pe.event_type='email_campaign_started' and pe.payload->>'enrollmentId'=e.id::text order by e.prospect_id,e.enrolled_at desc) select count(*)::int as recipients,count(*) filter(where exists(select 1 from appointments a where a.prospect_id=lc.prospect_id and a.created_at between lc.enrolled_at and lc.enrolled_at+interval '90 days' and coalesce(a.status,'') not in('cancelled','no_show')))::int as appointments,count(*) filter(where exists(select 1 from commercial_offers o where o.prospect_id=lc.prospect_id and o.created_at between lc.enrolled_at and lc.enrolled_at+interval '90 days'))::int as offers,count(*) filter(where p.status='Gagné' and p.updated_at between lc.enrolled_at and lc.enrolled_at+interval '90 days')::int as won,coalesce(sum(p.generated_revenue) filter(where p.status='Gagné' and p.updated_at between lc.enrolled_at and lc.enrolled_at+interval '90 days'),0)::float8 as "generatedRevenue" from latest_campaign lc join prospects p on p.id=lc.prospect_id and p.deleted_at is null`,
+        db()`with cfg as(select * from commercial_cost_settings where id=true),m as(select coalesce((select sum(duration_seconds) from call_logs where started_at>=date_trunc('month',now())),0)::float8/3600 as call_hours,coalesce((select sum(extract(epoch from(ends_at-starts_at))) from appointments where starts_at>=date_trunc('month',now()) and status not in('cancelled','no_show')),0)::float8/3600 as appointment_hours,(select count(*)::float8 from field_visits where visited_at>=date_trunc('month',now())) as visits,coalesce((select sum(estimated_km) from route_plans where route_date>=date_trunc('month',current_date)::date and status<>'cancelled'),0)::float8 as km,(select count(*)::float8 from email_messages where direction='outbound' and status in('sent','delivered','replied') and sent_at>=date_trunc('month',now())) as emails,(select count(*)::int from prospects where deleted_at is null and status='Gagné' and updated_at>=date_trunc('month',now())) as partners,coalesce((select sum(generated_revenue) from prospects where deleted_at is null and status='Gagné' and updated_at>=date_trunc('month',now())),0)::float8 as revenue) select cfg.hourly_cost::float8 as "hourlyCost",cfg.kilometer_cost::float8 as "kilometerCost",cfg.field_visit_minutes as "fieldVisitMinutes",cfg.automated_email_minutes::float8 as "automatedEmailMinutes",round((m.call_hours+m.appointment_hours+(m.visits*cfg.field_visit_minutes/60.0)+(m.emails*cfg.automated_email_minutes/60.0))::numeric,2)::float8 as hours,m.km,m.partners,m.revenue,round(((m.call_hours+m.appointment_hours+(m.visits*cfg.field_visit_minutes/60.0)+(m.emails*cfg.automated_email_minutes/60.0))*cfg.hourly_cost+m.km*cfg.kilometer_cost)::numeric,2)::float8 as "estimatedCost" from cfg cross join m`,
       ]);
     const f = funnel[0],
       a = activity[0],
       e = emails[0],
       c = calls[0],
       r = risks[0];
+    const acq = acquisition[0],
+      estimatedCost = Number(acq.estimatedCost || 0),
+      acquiredPartners = Number(acq.partners || 0),
+      acquiredRevenue = Number(acq.revenue || 0);
     const recommendations: Array<{
       level: string;
       title: string;
@@ -83,6 +93,13 @@ export async function GET() {
         detail: "Réactivez-les ou clôturez-les pour garder un pipeline fiable.",
         href: "/pipeline",
       });
+    if (estimatedCost > 0 && !acquiredPartners)
+      recommendations.push({
+        level: "watch",
+        title: "Investissement commercial sans signature ce mois",
+        detail: `${Math.round(estimatedCost)} € de coût estimé : concentrez les prochaines actions sur les prospects les plus proches d’une décision.`,
+        href: "/actions",
+      });
     if (!recommendations.length)
       recommendations.push({
         level: "good",
@@ -107,6 +124,11 @@ export async function GET() {
           partnersTarget: 0,
         },
         campaignImpact: campaignImpact[0],
+        acquisition: {
+          ...acq,
+          cac: acquiredPartners ? estimatedCost / acquiredPartners : null,
+          roi: estimatedCost ? ((acquiredRevenue - estimatedCost) / estimatedCost) * 100 : null,
+        },
         recommendations,
       },
       { headers: noStore },
@@ -129,6 +151,21 @@ export async function POST(req: NextRequest) {
       { error: "invalid_request" },
       { status: 400, headers: noStore },
     );
+  }
+  if (x.action === "save_costs") {
+    const hourlyCost = Number(x.hourlyCost),
+      kilometerCost = Number(x.kilometerCost),
+      fieldVisitMinutes = Number(x.fieldVisitMinutes),
+      automatedEmailMinutes = Number(x.automatedEmailMinutes);
+    if (![hourlyCost, kilometerCost, fieldVisitMinutes, automatedEmailMinutes].every(Number.isFinite) || hourlyCost < 0 || hourlyCost > 1000 || kilometerCost < 0 || kilometerCost > 100 || !Number.isInteger(fieldVisitMinutes) || fieldVisitMinutes < 0 || fieldVisitMinutes > 480 || automatedEmailMinutes < 0 || automatedEmailMinutes > 60)
+      return NextResponse.json({ error: "invalid_cost_settings" }, { status: 400, headers: noStore });
+    try {
+      await ensureCostSettings();
+      await db()`update commercial_cost_settings set hourly_cost=${hourlyCost},kilometer_cost=${kilometerCost},field_visit_minutes=${fieldVisitMinutes},automated_email_minutes=${automatedEmailMinutes},updated_at=now() where id=true`;
+      return NextResponse.json({ ok: true }, { headers: noStore });
+    } catch {
+      return NextResponse.json({ error: "cost_settings_failed" }, { status: 503, headers: noStore });
+    }
   }
   const revenue = Number(x.revenueTarget || 0),
     calls = Number(x.callsTarget || 0),
