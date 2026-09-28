@@ -142,9 +142,50 @@ async function guard() {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   return null;
 }
+let importSchemaPromise: Promise<void> | null = null;
+function ensureImportSchema() {
+  if (!importSchemaPromise)
+    importSchemaPromise = (async () => {
+      await db()`alter table prospects
+        add column if not exists email text,
+        add column if not exists contact_name text,
+        add column if not exists contact_role text,
+        add column if not exists website text,
+        add column if not exists siret text,
+        add column if not exists siren text,
+        add column if not exists naf_code text,
+        add column if not exists official_name text,
+        add column if not exists official_address text,
+        add column if not exists official_activity text,
+        add column if not exists employee_band text,
+        add column if not exists establishment_active boolean,
+        add column if not exists verification_status text not null default 'À vérifier',
+        add column if not exists verification_confidence integer not null default 0,
+        add column if not exists duplicate_status text not null default 'Unique',
+        add column if not exists recommended_action text,
+        add column if not exists data_source text,
+        add column if not exists postal_code text,
+        add column if not exists city text,
+        add column if not exists company_size text not null default 'À qualifier',
+        add column if not exists fleet_count integer,
+        add column if not exists lead_source text not null default 'Prospection terrain',
+        add column if not exists deleted_at timestamptz,
+        add column if not exists updated_at timestamptz not null default now()`;
+      await db()`create table if not exists prospect_events(id uuid primary key default gen_random_uuid(),prospect_id uuid not null references prospects(id) on delete restrict,event_type text not null,payload jsonb not null default '{}'::jsonb,created_at timestamptz not null default now())`;
+      await db()`create table if not exists import_batches(id uuid primary key default gen_random_uuid(),file_name text not null,status text not null default 'completed' check(status in ('completed','rolled_back')),created_count integer not null default 0,updated_count integer not null default 0,skipped_count integer not null default 0,created_at timestamptz not null default now(),rolled_back_at timestamptz)`;
+      await db()`create table if not exists import_batch_rows(id uuid primary key default gen_random_uuid(),batch_id uuid not null references import_batches(id) on delete restrict,prospect_id uuid not null references prospects(id) on delete restrict,operation text not null check(operation in ('created','updated')),before_data jsonb,created_at timestamptz not null default now())`;
+      await db()`create index if not exists import_batches_recent_idx on import_batches(created_at desc)`;
+      await db()`create index if not exists import_batch_rows_batch_idx on import_batch_rows(batch_id)`;
+    })().catch((error) => {
+      importSchemaPromise = null;
+      throw error;
+    });
+  return importSchemaPromise;
+}
 export async function GET() {
   const denied = await guard();
   if (denied) return denied;
+  await ensureImportSchema();
   const batches =
     await db()`select id,file_name as "fileName",status,created_count as "createdCount",updated_count as "updatedCount",skipped_count as "skippedCount",created_at as "createdAt",rolled_back_at as "rolledBackAt" from import_batches order by created_at desc limit 20`;
   return NextResponse.json({ batches }, { headers: noStore });
@@ -195,6 +236,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "empty_file" }, { status: 400 });
       const autoMap = mapping(headers);
       stage = "database_duplicate_check";
+      await ensureImportSchema();
       const existing =
         await db()`select id,name,email,phone,siret,address from prospects where deleted_at is null`;
       const rows = raw.slice(0, 2000).map((item, index) => {
@@ -233,6 +275,7 @@ export async function POST(req: NextRequest) {
       );
     }
     stage = "commit_payload";
+    await ensureImportSchema();
     const body = await req.json();
     if (body.action === "rollback") {
       const batchId = String(body.batchId || "");
