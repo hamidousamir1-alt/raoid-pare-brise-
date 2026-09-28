@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "./db";
 import { fullSchemaSql } from "./full-schema";
 
-const schemaVersion = 2;
+const schemaVersion = 3;
 let schemaPromise: Promise<void> | null = null;
 
 export function ensureCrmSchema() {
@@ -12,7 +12,11 @@ export function ensureCrmSchema() {
       const current = await db()`select version from crm_schema_versions where version=${schemaVersion}`;
       if (current.length) return;
       await db().begin(async (sql) => {
-        await sql.unsafe(fullSchemaSql);
+        const statements = fullSchemaSql
+          .split(/;\s*(?:\r?\n|$)/)
+          .map((statement) => statement.trim())
+          .filter(Boolean);
+        for (const statement of statements) await sql.unsafe(statement);
         await sql`insert into crm_schema_versions(version) values(${schemaVersion}) on conflict(version) do nothing`;
       });
     })().catch((error) => {

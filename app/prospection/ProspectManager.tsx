@@ -108,6 +108,7 @@ export default function ProspectManager() {
   const [items, setItems] = useState<Prospect[]>([]),
     [ready, setReady] = useState(false),
     [storage, setStorage] = useState<Storage>("loading"),
+    [storageError, setStorageError] = useState(""),
     [query, setQuery] = useState(""),
     [editing, setEditing] = useState<Prospect | null>(null),
     [timeline, setTimeline] = useState<TimelineItem[]>([]),
@@ -131,7 +132,14 @@ export default function ProspectManager() {
           return;
         }
         if (!res.ok) {
-          if (live) setStorage("blocked");
+          const failure = await res.json().catch(() => ({}));
+          if (live) {
+            setStorage("blocked");
+            setStorageError(
+              failure.detail ||
+                `Erreur ${failure.code || failure.error || res.status}`,
+            );
+          }
           return;
         }
         const data = await res.json();
@@ -447,7 +455,11 @@ export default function ProspectManager() {
           className="primary"
           onClick={() => {
             if (storage !== "server") {
-              alert("Stockage sécurisé indisponible.");
+              alert(
+                storageError
+                  ? `Stockage sécurisé indisponible : ${storageError}`
+                  : "Stockage sécurisé indisponible.",
+              );
               return;
             }
             setEditing(fresh());

@@ -39,17 +39,25 @@ export async function GET() {
       { error: "unauthorized" },
       { status: 401, headers: noStore },
     );
-  await ensureCrmSchema();
   try {
+    await ensureCrmSchema();
     const rows =
       await db()`select id,name,sector,zone,address,postal_code as "postalCode",city,website,siret,company_size as "companySize",fleet,fleet_count as "fleetCount",fleet_confidence as "fleetConfidence",fleet_types as "fleetTypes",usage_intensity as "usageIntensity",phone,email,contact_name as "contactName",contact_role as "contactRole",email_status as "emailStatus",do_not_contact as "doNotContact",current_glass_partner as "currentGlassPartner",glass_partner_details as "glassPartnerDetails",lead_source as "leadSource",best_contact_time as "bestContactTime",decision_process as "decisionProcess",objections,data_quality_score as "dataQualityScore",verification_status as "verificationStatus",verification_confidence as "verificationConfidence",duplicate_status as "duplicateStatus",establishment_active as "establishmentActive",recommended_action as "recommendedAction",latitude,longitude,last_field_visit_at as "lastFieldVisitAt",field_visit_count as "fieldVisitCount",last_contact_at as "lastContactAt",next_action_at as "nextActionAt",planned_route_date as "plannedRouteDate",status,score,notes,next_action as "next",access,insurance,potential_revenue as "potentialRevenue",signed_revenue as "signedRevenue",generated_revenue as "generatedRevenue",updated_at as "updatedAt" from prospects where deleted_at is null order by updated_at desc`;
     return NextResponse.json(
       { mode: "postgresql", items: rows },
       { headers: noStore },
     );
-  } catch {
+  } catch (error) {
+    console.error("[api/prospects] GET failed", error);
     return NextResponse.json(
-      { error: "database_unavailable" },
+      {
+        error: "database_unavailable",
+        code:
+          typeof error === "object" && error && "code" in error
+            ? String(error.code)
+            : "unknown",
+        detail: error instanceof Error ? error.message : String(error),
+      },
       { status: 503, headers: noStore },
     );
   }
