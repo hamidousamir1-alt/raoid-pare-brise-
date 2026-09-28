@@ -1,4 +1,4 @@
-const CACHE = "rapid-pb-field-v3";
+const CACHE = "rapid-pb-field-v4";
 const SHELL = [
   "/terrain",
   "/manifest.webmanifest",

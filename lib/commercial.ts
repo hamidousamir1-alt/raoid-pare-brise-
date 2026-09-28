@@ -1,10 +1,10 @@
 export type CommercialProspect = {
   fleet?: string | null;
   fleetCount?: number | null;
-  sector?: string;
-  status?: string;
-  access?: string;
-  insurance?: string;
+  sector?: string | null;
+  status?: string | null;
+  access?: string | null;
+  insurance?: string | null;
 };
 
 // Hypothèses commerciales de départ : à calibrer progressivement avec les données réelles Rapid Pare-Brise.
@@ -17,7 +17,7 @@ export function fleetMid(f: string | null = "") {
   const n = (String(f || "").match(/\d+/g) || []).map(Number);
   return n.length > 1 ? (n[0] + n[n.length - 1]) / 2 : n[0] || 0;
 }
-export function stageProbability(status = "Nouveau") {
+export function stageProbability(status: string | null = "Nouveau") {
   const values: Record<string, number> = {
     Nouveau: 0.2,
     "À contacter": 0.25,
@@ -28,7 +28,7 @@ export function stageProbability(status = "Nouveau") {
     Gagné: 1,
     Perdu: 0,
   };
-  return values[status] ?? 0.2;
+  return values[status || "Nouveau"] ?? 0.2;
 }
 export function rawAnnualPotential(p: CommercialProspect) {
   const vehicles = Number(p.fleetCount) || fleetMid(p.fleet);
@@ -71,7 +71,7 @@ export function weightedPipelinePotential(p: CommercialProspect) {
     Math.round((rawAnnualPotential(p) * stageProbability(p.status)) / 50) * 50
   );
 }
-export function suggestedNextAction(status = "Nouveau") {
+export function suggestedNextAction(status: string | null = "Nouveau") {
   return status === "Nouveau"
     ? "Qualifier le prospect"
     : status === "À contacter"

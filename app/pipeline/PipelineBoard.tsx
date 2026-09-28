@@ -9,18 +9,18 @@ type Stage = "À contacter" | "Qualifiés" | "RDV" | "Offres" | "Gagnés";
 type StoredProspect = {
   id: string;
   name: string;
-  score: number;
-  next?: string;
-  zone?: string;
-  status?: string;
-  fleet?: string;
-  sector?: string;
-  access?: string;
-  insurance?: string;
-  potentialRevenue?: number;
-  signedRevenue?: number;
-  generatedRevenue?: number;
-  updatedAt?: string;
+  score: number | null;
+  next?: string | null;
+  zone?: string | null;
+  status?: string | null;
+  fleet?: string | null;
+  sector?: string | null;
+  access?: string | null;
+  insurance?: string | null;
+  potentialRevenue?: number | null;
+  signedRevenue?: number | null;
+  generatedRevenue?: number | null;
+  updatedAt?: string | null;
   [key: string]: unknown;
 };
 type Deal = StoredProspect & { stage: Stage; next: string };
@@ -31,7 +31,7 @@ const money = (n = 0) =>
     currency: "EUR",
     maximumFractionDigits: 0,
   }).format(n);
-const toStage = (s = "Nouveau"): Stage =>
+const toStage = (s: string | null = "Nouveau"): Stage =>
   s === "Gagné"
     ? "Gagnés"
     : s === "Offre"
@@ -67,7 +67,7 @@ export default function PipelineBoard() {
         const d = await r.json();
         if (d.mode !== "postgresql") return;
         const valid = (d.items || []).filter(
-          (x: StoredProspect) => x.status !== "Perdu",
+          (x: StoredProspect) => x && x.id && x.name && x.status !== "Perdu",
         );
         if (live) {
           setDeals(
@@ -75,6 +75,7 @@ export default function PipelineBoard() {
               const stage = toStage(x.status);
               return {
                 ...x,
+                score: Number(x.score) || 50,
                 stage,
                 next: x.next || suggestedNextAction(toStatus(stage)),
                 potentialRevenue: weightedPipelinePotential(x),
@@ -217,8 +218,12 @@ export default function PipelineBoard() {
                   <article className="dealcard" key={d.id}>
                     <div className="dealTop">
                       <small>{d.sector || "PROSPECT B2B"}</small>
-                      <span className={d.score >= 85 ? "hotScore" : "score"}>
-                        {d.score}/100
+                      <span
+                        className={
+                          (Number(d.score) || 50) >= 85 ? "hotScore" : "score"
+                        }
+                      >
+                        {Number(d.score) || 50}/100
                       </span>
                     </div>
                     <h3>{d.name}</h3>
@@ -228,7 +233,7 @@ export default function PipelineBoard() {
                     </p>
                     <div className="dealValue">
                       <small>POTENTIEL PONDÉRÉ</small>
-                      <b>{money(d.potentialRevenue)}</b>
+                      <b>{money(Number(d.potentialRevenue) || 0)}</b>
                     </div>
                     <div className="nextAction">
                       <small>PROCHAINE ACTION</small>

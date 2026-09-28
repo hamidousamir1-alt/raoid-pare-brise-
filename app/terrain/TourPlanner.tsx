@@ -10,29 +10,29 @@ import {
 type Prospect = {
   id: string;
   name: string;
-  sector?: string;
-  zone?: string;
-  address?: string;
-  fleet?: string;
-  phone?: string;
-  score: number;
-  notes?: string;
-  access?: string;
-  insurance?: string;
-  status?: string;
-  potentialRevenue?: number;
+  sector?: string | null;
+  zone?: string | null;
+  address?: string | null;
+  fleet?: string | null;
+  phone?: string | null;
+  score: number | null;
+  notes?: string | null;
+  access?: string | null;
+  insurance?: string | null;
+  status?: string | null;
+  potentialRevenue?: number | null;
   doNotContact?: boolean;
   latitude?: number | null;
   longitude?: number | null;
   lastFieldVisitAt?: string | null;
   fieldVisitCount?: number;
   plannedRouteDate?: string | null;
-  companySize?: string;
-  verificationStatus?: string;
-  verificationConfidence?: number;
-  duplicateStatus?: string;
+  companySize?: string | null;
+  verificationStatus?: string | null;
+  verificationConfidence?: number | null;
+  duplicateStatus?: string | null;
   establishmentActive?: boolean | null;
-  recommendedAction?: string;
+  recommendedAction?: string | null;
 };
 type Stop = Prospect & { priority: number; distance: number; reason: string };
 type Position = { latitude: number; longitude: number };
@@ -115,7 +115,7 @@ function commercialValue(p: Prospect) {
     base +
     sizeBonus +
     trustBonus +
-    accessValue(p.access) +
+    accessValue(p.access || undefined) +
     freshness(p) +
     insurance +
     planned
@@ -170,7 +170,9 @@ export default function TourPlanner() {
         if (!r.ok) return;
         const d = await r.json();
         if (d.mode === "postgresql" && live) {
-          const items = d.items || [];
+          const items = (d.items || []).filter(
+            (item: Prospect) => item && item.id && item.name,
+          );
           setRaw(items);
           cacheRoute(items.slice(0, 100));
         }
