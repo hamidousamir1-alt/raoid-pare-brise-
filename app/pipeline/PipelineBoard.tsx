@@ -93,7 +93,10 @@ export default function PipelineBoard() {
   const stats = useMemo(() => {
     const active = deals.filter((d) => d.stage !== "Gagnés"),
       potential = active.reduce((a, d) => a + (d.potentialRevenue || 0), 0),
-      signed = deals.reduce((a, d) => a + (d.signedRevenue || 0), 0),
+      signed = deals.reduce(
+        (total, deal) => total + (Number(deal.signedRevenue) || 0),
+        0,
+      ),
       hot = deals.filter(
         (d) => d.stage === "RDV" || d.stage === "Offres",
       ).length;
