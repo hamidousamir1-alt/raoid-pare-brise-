@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authConfigured, sessionValid } from "../../../lib/auth";
 import { databaseConfigured, db } from "../../../lib/db";
+import { ensureCrmSchema } from "../../../lib/ensure-schema";
 import { recommendationFor } from "../../../lib/commercial-intelligence";
 import { generateDailyActions } from "../../../lib/daily-actions";
 
@@ -15,6 +16,7 @@ async function guard() {
     );
   if (!authConfigured() || !(await sessionValid()))
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  await ensureCrmSchema();
   return null;
 }
 export async function GET() {

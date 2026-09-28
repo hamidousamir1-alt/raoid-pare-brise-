@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authConfigured, sessionValid } from "../../../lib/auth";
 import { databaseConfigured, db } from "../../../lib/db";
+import { ensureCrmSchema } from "../../../lib/ensure-schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ async function guard() {
       { error: "unauthorized" },
       { status: 401, headers: noStore },
     );
+  await ensureCrmSchema();
   return null;
 }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authConfigured, sessionValid } from "../../../lib/auth";
 import { databaseConfigured, db } from "../../../lib/db";
+import { ensureCrmSchema } from "../../../lib/ensure-schema";
 import { microsoftConfigured } from "../../../lib/mailing";
 import { ensureSystemHealthTable } from "../../../lib/system-health";
 export const runtime = "nodejs";
@@ -14,6 +15,7 @@ async function guard() {
     );
   if (!authConfigured() || !(await sessionValid()))
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  await ensureCrmSchema();
   return null;
 }
 async function exportData() {
