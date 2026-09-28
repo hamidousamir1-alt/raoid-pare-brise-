@@ -153,15 +153,24 @@ export async function POST(req: NextRequest) {
   const denied = await guard();
   if (denied) return denied;
   const contentType = req.headers.get("content-type") || "";
+  let stage = "request";
   try {
     if (contentType.includes("multipart/form-data")) {
+      stage = "form_data";
       const form = await req.formData();
       const file = form.get("file");
       if (!(file instanceof File) || file.size > 8 * 1024 * 1024)
         return NextResponse.json({ error: "invalid_file" }, { status: 400 });
+      const extension = file.name.toLowerCase().split(".").pop();
+      if (extension !== "csv" && extension !== "xlsx")
+        return NextResponse.json(
+          { error: "unsupported_file_type" },
+          { status: 400 },
+        );
       const workbook = new ExcelJS.Workbook();
+      stage = "file_read";
       const content = Buffer.from(await file.arrayBuffer());
-      if (file.name.toLowerCase().endsWith(".csv"))
+      if (extension === "csv")
         await workbook.csv.read(Readable.from(content));
       else
         await workbook.xlsx.load(
@@ -185,6 +194,7 @@ export async function POST(req: NextRequest) {
       if (!raw.length)
         return NextResponse.json({ error: "empty_file" }, { status: 400 });
       const autoMap = mapping(headers);
+      stage = "database_duplicate_check";
       const existing =
         await db()`select id,name,email,phone,siret,address from prospects where deleted_at is null`;
       const rows = raw.slice(0, 2000).map((item, index) => {
@@ -222,6 +232,7 @@ export async function POST(req: NextRequest) {
         { headers: noStore },
       );
     }
+    stage = "commit_payload";
     const body = await req.json();
     if (body.action === "rollback") {
       const batchId = String(body.batchId || "");
@@ -295,9 +306,15 @@ export async function POST(req: NextRequest) {
       return { batchId: batch[0].id, created, updated, skipped };
     });
     return NextResponse.json(result, { status: 201 });
-  } catch {
+  } catch (error) {
+    console.error("[api/imports] request failed", {
+      stage,
+      contentType,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return NextResponse.json(
-      { error: "import_failed" },
+      { error: "import_failed", stage },
       { status: 503, headers: noStore },
     );
   }

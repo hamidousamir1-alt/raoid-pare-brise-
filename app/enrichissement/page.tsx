@@ -132,20 +132,38 @@ export default function EnrichmentPage() {
     setMessage("");
     const form = new FormData();
     form.append("file", file);
-    const r = await fetch("/api/imports", { method: "POST", body: form });
-    const data = await r.json();
-    setBusy("");
-    if (!r.ok) {
+    try {
+      const r = await fetch("/api/imports", { method: "POST", body: form });
+      const data = await r.json().catch(() => ({ error: "invalid_response" }));
+      if (!r.ok) {
+        const messages: Record<string, string> = {
+          unauthorized: "Votre session a expiré. Reconnectez-vous puis relancez l’analyse.",
+          database_not_configured:
+            "La base de données du CRM n’est pas configurée sur ce déploiement.",
+          invalid_file: "Le fichier dépasse 8 Mo ou n’a pas été transmis correctement.",
+          unsupported_file_type: "Utilisez un fichier .xlsx ou .csv.",
+          empty_file: "Le fichier ne contient aucune entreprise exploitable.",
+          invalid_response: "Le serveur n’a pas renvoyé de réponse exploitable.",
+          import_failed:
+            data.stage === "database_duplicate_check"
+              ? "La lecture du fichier a réussi, mais la base de données est inaccessible ou incomplète."
+              : data.stage === "file_read"
+                ? "Le serveur n’arrive pas à lire le contenu du fichier."
+                : "Une erreur interne empêche l’analyse du fichier.",
+        };
+        setMessage(messages[data.error] || `Erreur d’import : ${data.error || r.status}`);
+        return;
+      }
+      setPreview(data);
+      setMap(data.mapping);
       setMessage(
-        "Fichier illisible. Utilisez un fichier .xlsx, .xls ou .csv de moins de 8 Mo.",
+        `${data.stats.total} lignes analysées. Vérifiez les colonnes avant validation.`,
       );
-      return;
+    } catch {
+      setMessage("Connexion au serveur interrompue pendant l’analyse.");
+    } finally {
+      setBusy("");
     }
-    setPreview(data);
-    setMap(data.mapping);
-    setMessage(
-      `${data.stats.total} lignes analysées. Vérifiez les colonnes avant validation.`,
-    );
   }
   async function commit() {
     if (!preview || !rows.some((row) => clean(row.name))) return;
