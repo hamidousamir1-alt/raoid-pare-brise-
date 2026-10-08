@@ -144,6 +144,8 @@ export default function Messages() {
     [templateCategory, setTemplateCategory] = useState("Toutes"),
     [replyChoices, setReplyChoices] = useState<Record<string, string>>({}),
     [campaignResult, setCampaignResult] = useState("");
+  const [prospectSearch, setProspectSearch] = useState("");
+  const [templateSearch, setTemplateSearch] = useState("");
   const [campaign, setCampaign] = useState<CampaignForm>(() => {
     const start = new Date(Date.now() + 86400_000);
     start.setHours(9, 0, 0, 0);
@@ -191,6 +193,20 @@ export default function Messages() {
     () => data?.prospects.find((p) => p.id === prospectId),
     [data, prospectId],
   );
+  const searchedProspects = useMemo(() => {
+    const query = prospectSearch.trim().toLocaleLowerCase("fr");
+    return (data?.prospects || []).filter((prospect) =>
+      !query || [prospect.name, prospect.email, prospect.contactName, prospect.zone]
+        .some((value) => String(value || "").toLocaleLowerCase("fr").includes(query)),
+    ).slice(0, 60);
+  }, [data, prospectSearch]);
+  const searchedTemplates = useMemo(() => {
+    const query = templateSearch.trim().toLocaleLowerCase("fr");
+    return (data?.templates || []).filter((template) =>
+      !query || [template.name, template.category, template.situation, template.subject]
+        .some((value) => String(value || "").toLocaleLowerCase("fr").includes(query)),
+    ).slice(0, 60);
+  }, [data, templateSearch]);
   const templateCategories = useMemo(
     () => [
       "Toutes",
@@ -579,29 +595,45 @@ export default function Messages() {
               <form className="mailForm" onSubmit={schedule}>
                 <label>
                   Prospect
+                  <input
+                    type="search"
+                    value={prospectSearch}
+                    onChange={(e) => setProspectSearch(e.target.value)}
+                    placeholder="Rechercher une entreprise ou un contact…"
+                    aria-label="Rechercher une entreprise ou un contact"
+                  />
                   <select
                     value={prospectId}
                     onChange={(e) => setProspectId(e.target.value)}
                   >
-                    {data.prospects.map((p) => (
+                    {searchedProspects.map((p) => (
                       <option value={p.id} key={p.id}>
                         {p.name}
                         {p.email ? ` — ${p.email}` : " — e-mail manquant"}
                       </option>
                     ))}
+                    {!searchedProspects.length && <option value="">Aucun résultat</option>}
                   </select>
                 </label>
                 <label>
                   Modèle
+                  <input
+                    type="search"
+                    value={templateSearch}
+                    onChange={(e) => setTemplateSearch(e.target.value)}
+                    placeholder="Rechercher un modèle ou une situation…"
+                    aria-label="Rechercher un modèle ou une situation"
+                  />
                   <select
                     value={templateId}
                     onChange={(e) => setTemplateId(e.target.value)}
                   >
-                    {data.templates.map((t) => (
+                    {searchedTemplates.map((t) => (
                       <option value={t.id} key={t.id}>
                         {t.name}
                       </option>
                     ))}
+                    {!searchedTemplates.length && <option value="">Aucun résultat</option>}
                   </select>
                 </label>
                 <label>
