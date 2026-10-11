@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "./db";
 import { fullSchemaSql } from "./full-schema";
 
-const schemaVersion = 3;
+const schemaVersion = 4;
 let schemaPromise: Promise<void> | null = null;
 
 export function ensureCrmSchema() {

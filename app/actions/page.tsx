@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import CommercialTaskPlanner from "./CommercialTaskPlanner";
 
 type Task = {
   id: string;
@@ -231,6 +232,7 @@ export default function ActionsPage() {
         </div>
       </header>
       {error && <section className="actionPanel">{error}</section>}
+      <CommercialTaskPlanner recommendations={intelligence?.recommendations || []} />
       {intelligence && (
         <section className="intelPanel">
           <p className="eyebrow">COPILOTE COMMERCIAL EXPLICABLE</p>
