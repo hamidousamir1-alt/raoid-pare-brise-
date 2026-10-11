@@ -1,7 +1,7 @@
 name: Quality
 on:
   push:
-    branches: [main, codex/crm-feature-preview]
+    branches: [main]
   pull_request:
 permissions:
   contents: read
@@ -17,30 +17,3 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm audit --audit-level=high
-
-  update-dependencies:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/codex/crm-feature-preview'
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: codex/crm-feature-preview
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Update patched dependencies and lockfile
-        run: |
-          npm install --save-exact next@16.4.0
-          npm audit fix
-          npm run typecheck
-          npm run build
-          npm audit --audit-level=high
-      - name: Commit dependency fix
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add package.json package-lock.json
-          git commit -m "fix: update vulnerable dependencies"
-          git push origin HEAD:codex/crm-feature-preview
