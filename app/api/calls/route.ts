@@ -145,7 +145,17 @@ export async function POST(req: NextRequest) {
           { error: "prospect_or_contact_not_found" },
           { status: 404, headers: noStore },
         );
-  } catch {
+  } catch (error) {
+    const details =
+      typeof error === "object" && error !== null
+        ? (error as { code?: unknown; constraint_name?: unknown })
+        : {};
+    console.error("[api/calls] Call transaction failed", {
+      code: details.code ? String(details.code) : "unknown",
+      constraint: details.constraint_name
+        ? String(details.constraint_name)
+        : undefined,
+    });
     return NextResponse.json(
       { error: "call_operation_failed" },
       { status: 503, headers: noStore },

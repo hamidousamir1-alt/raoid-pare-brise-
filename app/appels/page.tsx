@@ -105,6 +105,8 @@ export default function CallsPage() {
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [callFeedback, setCallFeedback] = useState("");
+  const [callFeedbackError, setCallFeedbackError] = useState(false);
 
   async function load() {
     try {
@@ -202,6 +204,10 @@ export default function CallsPage() {
       setNewProspectName("");
       setNewProspectPhone("");
       setNewProspectContact("");
+      setCallFeedbackError(false);
+      setCallFeedback(
+        "Entreprise enregistrée et sélectionnée. Le compte rendu de l’appel s’enregistre séparément.",
+      );
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -226,6 +232,8 @@ export default function CallsPage() {
   async function save(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
+    setCallFeedback("");
+    setCallFeedbackError(false);
     try {
       const response = await fetch("/api/calls", {
         method: "POST",
@@ -244,13 +252,35 @@ export default function CallsPage() {
             outcome === "appointment" ? appointmentStartsAt : null,
         }),
       });
-      if (!response.ok) throw new Error();
+      if (response.status === 401) {
+        location.href = "/login";
+        return;
+      }
+      if (response.status === 400)
+        throw new Error(
+          "L’appel n’a pas été enregistré : vérifie le résultat, le statut, la prochaine action et son échéance.",
+        );
+      if (response.status === 404)
+        throw new Error(
+          "Le prospect n’a pas été retrouvé par le serveur. Vérifie qu’il apparaît dans la recherche, puis sélectionne-le à nouveau.",
+        );
+      if (!response.ok)
+        throw new Error(
+          "Le serveur n’a pas confirmé l’enregistrement de l’appel. La fiche entreprise n’est pas supprimée : vérifie sa présence dans la recherche avant de la recréer, puis réessaie.",
+        );
       setNotes("");
       setDuration("3");
       await load();
-    } catch {
-      alert(
-        "L’appel n’a pas pu être enregistré. Vérifiez la prochaine action et sa date.",
+      setCallFeedbackError(false);
+      setCallFeedback(
+        "Appel enregistré. La fiche et sa prochaine action ont été mises à jour.",
+      );
+    } catch (cause) {
+      setCallFeedbackError(true);
+      setCallFeedback(
+        cause instanceof Error
+          ? cause.message
+          : "La connexion a été interrompue. Le CRM n’a pas confirmé l’enregistrement de l’appel.",
       );
     } finally {
       setBusy(false);
@@ -260,7 +290,7 @@ export default function CallsPage() {
   const minutes = Math.round((data?.stats.todaySeconds || 0) / 60);
   return (
     <main className="workspace callsPage">
-      <style>{`.callsPage{display:grid;gap:18px}.callsHead{display:flex;justify-content:space-between;align-items:flex-end;gap:18px}.callsHead h1{margin:4px 0 7px}.callKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.callKpis article,.callPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:19px}.callKpis small{display:block;color:#7b8797;font-size:9px}.callKpis b{display:block;font-size:24px;margin-top:7px}.callsGrid{display:grid;grid-template-columns:.92fr 1.08fr;gap:18px}.callForm{display:grid;gap:13px}.callForm label{display:grid;gap:6px;color:#657386;font-size:10px}.callForm input,.callForm select,.callForm textarea{width:100%;padding:11px;border:1px solid #dce2e9;border-radius:9px;background:#fff}.callForm textarea{min-height:90px;resize:vertical}.callPair{display:grid;grid-template-columns:1fr 1fr;gap:11px}.callSuggestion{padding:13px;border-radius:11px;background:#f6f8fa;border-left:3px solid #ef3340}.callSuggestion p{margin:0 0 10px;font-size:11px;color:#5f6d7f}.selectedCall{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:10px;background:#111d2b;color:#fff}.selectedCall small{display:block;color:#aeb8c5;margin-top:4px}.selectedCall a{color:#fff;text-decoration:none;font-size:18px}.callLine{padding:14px 0;border-top:1px solid #edf0f4}.callLine:first-of-type{border-top:0}.callLine header{display:flex;justify-content:space-between;gap:10px}.callLine p{color:#667487;font-size:11px;line-height:1.5;margin:7px 0}.callLine small{color:#8590a0}.callBadge{white-space:nowrap;color:#bd2934;background:#fff0f1;border-radius:7px;padding:5px 7px;font-size:9px}.callFlow{font-size:10px;color:#748094}.callEmpty{padding:18px;background:#f4f8f5;color:#28633d;border-radius:11px}.callLookup{display:grid;gap:8px}.callLookupResults{display:grid;gap:5px;max-height:190px;overflow:auto}.callLookupResults button{display:grid;gap:4px;text-align:left;border:1px solid #e4e9ef;border-radius:9px;padding:10px;background:#f8fafc;color:#172334;cursor:pointer}.callLookupResults button:hover{border-color:#ef3340}.callLookupResults small,.callLookupHint{color:#768396;font-size:10px;margin:0}.callAddProspect{justify-self:start;border:0;background:transparent;color:#c52c36;font-weight:700;padding:4px 0;cursor:pointer}.quickProspectForm{display:grid;gap:11px;padding:14px;border:1px solid #e5e9ef;border-radius:11px;background:#fafbfc}.quickProspectForm>b{font-size:12px;color:#172334}.quickProspectForm .primary{justify-self:start}@media(max-width:900px){.callsGrid{grid-template-columns:1fr}.callKpis{grid-template-columns:1fr 1fr}.callsHead{align-items:flex-start;flex-direction:column}.callPair{grid-template-columns:1fr}}`}</style>
+      <style>{`.callsPage{display:grid;gap:18px}.callsHead{display:flex;justify-content:space-between;align-items:flex-end;gap:18px}.callsHead h1{margin:4px 0 7px}.callKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.callKpis article,.callPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:19px}.callKpis small{display:block;color:#7b8797;font-size:9px}.callKpis b{display:block;font-size:24px;margin-top:7px}.callsGrid{display:grid;grid-template-columns:.92fr 1.08fr;gap:18px}.callForm{display:grid;gap:13px}.callForm label{display:grid;gap:6px;color:#657386;font-size:10px}.callForm input,.callForm select,.callForm textarea{width:100%;padding:11px;border:1px solid #dce2e9;border-radius:9px;background:#fff}.callForm textarea{min-height:90px;resize:vertical}.callPair{display:grid;grid-template-columns:1fr 1fr;gap:11px}.callSuggestion{padding:13px;border-radius:11px;background:#f6f8fa;border-left:3px solid #ef3340}.callSuggestion p{margin:0 0 10px;font-size:11px;color:#5f6d7f}.selectedCall{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:10px;background:#111d2b;color:#fff}.selectedCall small{display:block;color:#aeb8c5;margin-top:4px}.selectedCall a{color:#fff;text-decoration:none;font-size:18px}.callLine{padding:14px 0;border-top:1px solid #edf0f4}.callLine:first-of-type{border-top:0}.callLine header{display:flex;justify-content:space-between;gap:10px}.callLine p{color:#667487;font-size:11px;line-height:1.5;margin:7px 0}.callLine small{color:#8590a0}.callBadge{white-space:nowrap;color:#bd2934;background:#fff0f1;border-radius:7px;padding:5px 7px;font-size:9px}.callFlow{font-size:10px;color:#748094}.callEmpty{padding:18px;background:#f4f8f5;color:#28633d;border-radius:11px}.callFeedback{margin:0;padding:11px 13px;border-radius:9px;background:#f1f8f2;color:#28633d;font-size:11px;line-height:1.5}.callFeedback.isError{background:#fff4f3;color:#a62a2a}.callLookup{display:grid;gap:8px}.callLookupResults{display:grid;gap:5px;max-height:190px;overflow:auto}.callLookupResults button{display:grid;gap:4px;text-align:left;border:1px solid #e4e9ef;border-radius:9px;padding:10px;background:#f8fafc;color:#172334;cursor:pointer}.callLookupResults button:hover{border-color:#ef3340}.callLookupResults small,.callLookupHint{color:#768396;font-size:10px;margin:0}.callAddProspect{justify-self:start;border:0;background:transparent;color:#c52c36;font-weight:700;padding:4px 0;cursor:pointer}.quickProspectForm{display:grid;gap:11px;padding:14px;border:1px solid #e5e9ef;border-radius:11px;background:#fafbfc}.quickProspectForm>b{font-size:12px;color:#172334}.quickProspectForm .primary{justify-self:start}@media(max-width:900px){.callsGrid{grid-template-columns:1fr}.callKpis{grid-template-columns:1fr 1fr}.callsHead{align-items:flex-start;flex-direction:column}.callPair{grid-template-columns:1fr}}`}</style>
       <header className="callsHead">
         <div>
           <p className="eyebrow">SUIVI TÉLÉPHONIQUE</p>
@@ -538,6 +568,14 @@ export default function CallsPage() {
               </label>
             )}
           </div>
+          {callFeedback && (
+            <p
+              className={`callFeedback ${callFeedbackError ? "isError" : ""}`}
+              role="status"
+            >
+              {callFeedback}
+            </p>
+          )}
           <button className="primary" disabled={busy || !prospectId}>
             {busy ? "Enregistrement…" : "Enregistrer l’appel et la suite"}
           </button>
