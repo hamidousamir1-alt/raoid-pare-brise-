@@ -106,6 +106,7 @@ export default function CallsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [callFeedback, setCallFeedback] = useState("");
+  const [callFeedbackError, setCallFeedbackError] = useState(false);
 
   async function load() {
     try {
@@ -203,6 +204,7 @@ export default function CallsPage() {
       setNewProspectName("");
       setNewProspectPhone("");
       setNewProspectContact("");
+      setCallFeedbackError(false);
       setCallFeedback(
         "Entreprise enregistrée et sélectionnée. Le compte rendu de l’appel s’enregistre séparément.",
       );
@@ -231,6 +233,7 @@ export default function CallsPage() {
     event.preventDefault();
     setBusy(true);
     setCallFeedback("");
+    setCallFeedbackError(false);
     try {
       const response = await fetch("/api/calls", {
         method: "POST",
@@ -268,10 +271,12 @@ export default function CallsPage() {
       setNotes("");
       setDuration("3");
       await load();
+      setCallFeedbackError(false);
       setCallFeedback(
         "Appel enregistré. La fiche et sa prochaine action ont été mises à jour.",
       );
     } catch (cause) {
+      setCallFeedbackError(true);
       setCallFeedback(
         cause instanceof Error
           ? cause.message
@@ -565,7 +570,7 @@ export default function CallsPage() {
           </div>
           {callFeedback && (
             <p
-              className={`callFeedback ${callFeedback.startsWith("L’appel n’a pas été enregistré") || callFeedback.startsWith("Le serveur") || callFeedback.startsWith("Le prospect") ? "isError" : ""}`}
+              className={`callFeedback ${callFeedbackError ? "isError" : ""}`}
               role="status"
             >
               {callFeedback}
