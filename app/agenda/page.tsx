@@ -209,6 +209,22 @@ export default function AgendaPage() {
       setSelected(null);
   }
 
+  async function deleteAppointment(appointment: Appointment) {
+    if (
+      !window.confirm(
+        "Supprimer ce rendez-vous de l’agenda ? Les rappels et tâches associés seront fermés. Une trace restera dans l’historique commercial.",
+      )
+    )
+      return;
+    if (
+      await api({
+        action: "delete",
+        appointmentId: appointment.id,
+      })
+    )
+      setSelected(null);
+  }
+
   async function complete(event: React.FormEvent) {
     event.preventDefault();
     if (!completing) return;
@@ -233,7 +249,7 @@ export default function AgendaPage() {
 
   return (
     <main className="workspace agendaPage">
-      <style>{`.agendaPage{display:grid;gap:18px}.agendaHead{display:flex;justify-content:space-between;align-items:flex-end;gap:20px}.agendaHead h1{margin:4px 0 7px}.agendaActions{display:flex;gap:8px}.weekNav{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e7eaf0;border-radius:14px;padding:11px 14px}.weekNav button{width:36px;height:34px}.weekNav b{font-size:13px}.weekGrid{display:grid;grid-template-columns:repeat(7,minmax(135px,1fr));gap:8px;overflow-x:auto}.dayColumn{min-height:420px;padding:11px;background:#eef2f5;border-radius:14px}.dayColumn.today{box-shadow:inset 0 0 0 2px #ef3340}.dayColumn>header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.dayColumn>header small{color:#7c8797}.appointmentCard{width:100%;margin-bottom:8px;padding:11px;text-align:left;background:#fff;border:1px solid #e2e7ec;border-radius:11px}.appointmentCard time,.appointmentCard small{display:block;color:#778396;font-size:9px}.appointmentCard b{display:block;margin:5px 0;font-size:11px}.appointmentCard mark{display:inline-block;margin-top:7px}.agendaToday{display:grid;grid-template-columns:.7fr 1.3fr;gap:16px}.agendaPanel{padding:20px;background:#fff;border:1px solid #e7eaf0;border-radius:16px}.agendaPanel h2{margin:3px 0 15px}.todayLine{display:flex;justify-content:space-between;gap:15px;padding:12px 0;border-top:1px solid #edf0f4}.todayLine:first-of-type{border:0}.appointmentDetail p{color:#647185;font-size:12px;line-height:1.55}.detailButtons{display:flex;gap:8px;flex-wrap:wrap}.appointmentForm{display:grid;grid-template-columns:1fr 1fr;gap:13px}.appointmentForm label{font-size:10px;color:#5f6b7d}.appointmentForm input,.appointmentForm select,.appointmentForm textarea{display:block;width:100%;margin-top:6px;padding:10px;border:1px solid #dce1e9;border-radius:9px}.appointmentForm .full{grid-column:1/-1}.modalSubmit{width:100%;margin-top:16px}@media(max-width:800px){.agendaHead{align-items:flex-start;flex-direction:column}.agendaActions{width:100%}.agendaActions button{flex:1}.weekGrid{grid-template-columns:repeat(7,82vw)}.agendaToday{grid-template-columns:1fr}.appointmentForm{grid-template-columns:1fr}.appointmentForm .full{grid-column:1}.modal{width:calc(100% - 24px);max-height:92vh;overflow:auto}.modalSubmit{min-height:48px}}`}</style>
+      <style>{`.agendaPage{display:grid;gap:18px}.agendaHead{display:flex;justify-content:space-between;align-items:flex-end;gap:20px}.agendaHead h1{margin:4px 0 7px}.agendaActions{display:flex;gap:8px}.weekNav{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e7eaf0;border-radius:14px;padding:11px 14px}.weekNav button{width:36px;height:34px}.weekNav b{font-size:13px}.weekGrid{display:grid;grid-template-columns:repeat(7,minmax(135px,1fr));gap:8px;overflow-x:auto}.dayColumn{min-height:420px;padding:11px;background:#eef2f5;border-radius:14px}.dayColumn.today{box-shadow:inset 0 0 0 2px #ef3340}.dayColumn>header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.dayColumn>header small{color:#7c8797}.appointmentCard{width:100%;margin-bottom:8px;padding:11px;text-align:left;background:#fff;border:1px solid #e2e7ec;border-radius:11px}.appointmentCard time,.appointmentCard small{display:block;color:#778396;font-size:9px}.appointmentCard b{display:block;margin:5px 0;font-size:11px}.appointmentCard mark{display:inline-block;margin-top:7px}.agendaToday{display:grid;grid-template-columns:.7fr 1.3fr;gap:16px}.agendaPanel{padding:20px;background:#fff;border:1px solid #e7eaf0;border-radius:16px}.agendaPanel h2{margin:3px 0 15px}.todayLine{display:flex;justify-content:space-between;gap:15px;padding:12px 0;border-top:1px solid #edf0f4}.todayLine:first-of-type{border:0}.appointmentDetail p{color:#647185;font-size:12px;line-height:1.55}.detailButtons{display:flex;gap:8px;flex-wrap:wrap}.detailButtons .dangerButton{color:#b32632;border:1px solid #f0c4c7;background:#fff7f7}.appointmentForm{display:grid;grid-template-columns:1fr 1fr;gap:13px}.appointmentForm label{font-size:10px;color:#5f6b7d}.appointmentForm input,.appointmentForm select,.appointmentForm textarea{display:block;width:100%;margin-top:6px;padding:10px;border:1px solid #dce1e9;border-radius:9px}.appointmentForm .full{grid-column:1/-1}.modalSubmit{width:100%;margin-top:16px}@media(max-width:800px){.agendaHead{align-items:flex-start;flex-direction:column}.agendaActions{width:100%}.agendaActions button{flex:1}.weekGrid{grid-template-columns:repeat(7,82vw)}.agendaToday{grid-template-columns:1fr}.appointmentForm{grid-template-columns:1fr}.appointmentForm .full{grid-column:1}.modal{width:calc(100% - 24px);max-height:92vh;overflow:auto}.modalSubmit{min-height:48px}}`}</style>
       <header className="agendaHead">
         <div>
           <p className="eyebrow">RENDEZ-VOUS & SUIVI</p>
@@ -391,10 +407,19 @@ export default function AgendaPage() {
                     Absent
                   </button>
                 )}
-                {!["completed", "cancelled"].includes(selected.status) && (
-                  <button onClick={() => changeStatus(selected, "cancelled")}>
-                    Annuler
-                  </button>
+                {!["completed", "cancelled", "no_show"].includes(selected.status) && (
+                  <>
+                    <button onClick={() => changeStatus(selected, "cancelled")}>
+                      Annuler
+                    </button>
+                    <button
+                      className="dangerButton"
+                      disabled={busy}
+                      onClick={() => deleteAppointment(selected)}
+                    >
+                      Supprimer
+                    </button>
+                  </>
                 )}
               </div>
             </div>
