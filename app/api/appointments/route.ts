@@ -44,8 +44,8 @@ export async function GET(req: NextRequest) {
   try {
     const [appointments, prospects] = await Promise.all([
       from && to
-        ? db()`select a.id,a.prospect_id as "prospectId",a.contact_id as "contactId",p.name as prospect,p.phone,p.email,p.address,p.zone,p.notes,p.objections,p.next_action as "prospectNext",a.title,a.meeting_type as "meetingType",a.starts_at as "startsAt",a.ends_at as "endsAt",a.location,a.objective,a.preparation_notes as "preparationNotes",a.status,a.confirmation_status as "confirmationStatus",a.reminder_day as "reminderDay",a.reminder_hour as "reminderHour",a.outcome,a.next_action as "nextAction",a.next_action_at as "nextActionAt",a.external_provider as "externalProvider",a.external_event_id as "externalEventId",c.name as contact,c.role as "contactRole",c.phone as "contactPhone",c.email as "contactEmail" from appointments a join prospects p on p.id=a.prospect_id left join prospect_contacts c on c.id=a.contact_id where a.starts_at>=${from} and a.starts_at<${to} order by a.starts_at`
-        : db()`select a.id,a.prospect_id as "prospectId",a.contact_id as "contactId",p.name as prospect,p.phone,p.email,p.address,p.zone,p.notes,p.objections,p.next_action as "prospectNext",a.title,a.meeting_type as "meetingType",a.starts_at as "startsAt",a.ends_at as "endsAt",a.location,a.objective,a.preparation_notes as "preparationNotes",a.status,a.confirmation_status as "confirmationStatus",a.reminder_day as "reminderDay",a.reminder_hour as "reminderHour",a.outcome,a.next_action as "nextAction",a.next_action_at as "nextActionAt",a.external_provider as "externalProvider",a.external_event_id as "externalEventId",c.name as contact,c.role as "contactRole",c.phone as "contactPhone",c.email as "contactEmail" from appointments a join prospects p on p.id=a.prospect_id left join prospect_contacts c on c.id=a.contact_id where a.starts_at>=now()-interval '30 days' order by a.starts_at`,
+        ? db()`select a.id,a.prospect_id as "prospectId",a.contact_id as "contactId",p.name as prospect,p.phone,p.email,p.address,p.zone,p.notes,p.objections,p.next_action as "prospectNext",a.title,a.meeting_type as "meetingType",a.starts_at as "startsAt",a.ends_at as "endsAt",a.location,a.objective,a.preparation_notes as "preparationNotes",a.status,a.confirmation_status as "confirmationStatus",a.reminder_day as "reminderDay",a.reminder_hour as "reminderHour",a.outcome,a.next_action as "nextAction",a.next_action_at as "nextActionAt",a.external_provider as "externalProvider",a.external_event_id as "externalEventId",c.name as contact,c.role as "contactRole",c.phone as "contactPhone",c.email as "contactEmail" from appointments a join prospects p on p.id=a.prospect_id left join prospect_contacts c on c.id=a.contact_id where a.starts_at>=${from} and a.starts_at<${to} and a.status<>'cancelled' order by a.starts_at`
+        : db()`select a.id,a.prospect_id as "prospectId",a.contact_id as "contactId",p.name as prospect,p.phone,p.email,p.address,p.zone,p.notes,p.objections,p.next_action as "prospectNext",a.title,a.meeting_type as "meetingType",a.starts_at as "startsAt",a.ends_at as "endsAt",a.location,a.objective,a.preparation_notes as "preparationNotes",a.status,a.confirmation_status as "confirmationStatus",a.reminder_day as "reminderDay",a.reminder_hour as "reminderHour",a.outcome,a.next_action as "nextAction",a.next_action_at as "nextActionAt",a.external_provider as "externalProvider",a.external_event_id as "externalEventId",c.name as contact,c.role as "contactRole",c.phone as "contactPhone",c.email as "contactEmail" from appointments a join prospects p on p.id=a.prospect_id left join prospect_contacts c on c.id=a.contact_id where a.starts_at>=now()-interval '30 days' and a.status<>'cancelled' order by a.starts_at`,
       db()`select id,name,address,zone,contact_name as "contactName",contact_role as "contactRole",phone,email from prospects where deleted_at is null and status<>'Perdu' order by name`,
     ]);
     return NextResponse.json({ appointments, prospects }, { headers: noStore });
@@ -100,6 +100,9 @@ export async function POST(req: NextRequest) {
           );
       }
       const rows = await db().begin(async (sql) => {
+        const prospectBefore =
+          await sql`select status,next_action as "nextAction",next_action_at as "nextActionAt" from prospects where id=${prospectId} and deleted_at is null for update`;
+        if (!prospectBefore.length) return [];
         const reminderSettings =
           await sql`select setting_key,enabled from automation_settings where setting_key in ('appointment_day_reminder','appointment_hour_reminder')`;
         const dayEnabled =
@@ -121,7 +124,7 @@ export async function POST(req: NextRequest) {
           await sql`insert into sales_tasks(prospect_id,appointment_id,task_type,title,priority,due_at,source) values(${prospectId},${created[0].id},'appointment_confirmation','Confirmer le rendez-vous avec le prospect',88,${new Date(startsAt.getTime() - 86400_000).toISOString()},'appointment')`;
         if (reminderHour)
           await sql`insert into sales_tasks(prospect_id,appointment_id,task_type,title,priority,due_at,source) values(${prospectId},${created[0].id},'appointment_reminder','Rendez-vous dans une heure',98,${new Date(startsAt.getTime() - 3600_000).toISOString()},'appointment')`;
-        await sql`insert into prospect_events(prospect_id,event_type,payload) values(${prospectId},'appointment_created',${sql.json({ appointmentId: created[0].id, startsAt: startsAt.toISOString(), meetingType })})`;
+        await sql`insert into prospect_events(prospect_id,event_type,payload) values(${prospectId},'appointment_created',${sql.json({ appointmentId: created[0].id, startsAt: startsAt.toISOString(), meetingType, previousStatus: prospectBefore[0].status, previousNextAction: prospectBefore[0].nextAction, previousNextActionAt: prospectBefore[0].nextActionAt ? new Date(prospectBefore[0].nextActionAt).toISOString() : null })})`;
         return created;
       });
       return rows.length
@@ -141,6 +144,43 @@ export async function POST(req: NextRequest) {
         { error: "invalid_id" },
         { status: 400, headers: noStore },
       );
+
+    if (x.action === "delete") {
+      const deleted = await db().begin(async (sql) => {
+        const rows = await sql`select a.prospect_id as "prospectId",a.title,a.starts_at as "startsAt",a.status,p.status as "prospectStatus",p.next_action as "prospectNextAction" from appointments a join prospects p on p.id=a.prospect_id where a.id=${id} for update`;
+        if (!rows.length || !["scheduled", "confirmed"].includes(rows[0].status))
+          return null;
+        const previous =
+          await sql`select payload from prospect_events where prospect_id=${rows[0].prospectId} and event_type='appointment_created' and payload->>'appointmentId'=${id} order by created_at desc limit 1`;
+        const updated =
+          await sql`update appointments set status='cancelled',updated_at=now() where id=${id} and status in ('scheduled','confirmed') returning id`;
+        if (!updated.length) return null;
+        await sql`update sales_tasks set status='dismissed',updated_at=now() where appointment_id=${id} and status='open'`;
+        const otherAppointments =
+          await sql`select id from appointments where prospect_id=${rows[0].prospectId} and id<>${id} and status in ('scheduled','confirmed') limit 1`;
+        if (
+          !otherAppointments.length &&
+          rows[0].prospectStatus === "RDV" &&
+          rows[0].prospectNextAction === "Préparer le rendez-vous"
+        ) {
+          const snapshot = previous[0]?.payload || {};
+          const previousStatus =
+            snapshot.previousStatus || "À contacter";
+          const previousNextAction = snapshot.previousNextAction || null;
+          const previousNextActionAt =
+            snapshot.previousNextActionAt || null;
+          await sql`update prospects set status=${previousStatus},next_action=${previousNextAction},next_action_at=${previousNextActionAt},updated_at=now() where id=${rows[0].prospectId}`;
+        }
+        await sql`insert into prospect_events(prospect_id,event_type,payload) values(${rows[0].prospectId},'appointment_deleted',${sql.json({ appointmentId: id, title: rows[0].title, startsAt: rows[0].startsAt })})`;
+        return rows[0];
+      });
+      return deleted
+        ? NextResponse.json({ ok: true }, { headers: noStore })
+        : NextResponse.json(
+            { error: "not_found_or_not_deletable" },
+            { status: 404, headers: noStore },
+          );
+    }
 
     if (x.action === "status") {
       const status = String(x.status || "");
