@@ -20,6 +20,7 @@ type Reply = {
   reviewStatus: string;
 };
 type ActionData = { tasks: Task[]; replies: Reply[] };
+type TaskDraft = { id: string; title: string; dueAt: string; priority: number };
 type Recommendation = {
   prospectId: string;
   prospect: string;
@@ -92,12 +93,23 @@ const categories: Record<string, string> = {
   ambiguous: "À qualifier",
 };
 
+function toLocalDateTime(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+        .toISOString()
+        .slice(0, 16);
+}
+
 export default function ActionsPage() {
   const [data, setData] = useState<ActionData>({ tasks: [], replies: [] });
   const [intelligence, setIntelligence] = useState<IntelligenceData | null>(
     null,
   );
   const [choices, setChoices] = useState<Record<string, string>>({});
+  const [editingTask, setEditingTask] = useState<TaskDraft | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
@@ -140,6 +152,33 @@ export default function ActionsPage() {
       await load();
     } catch {
       alert("L’action n’a pas pu être enregistrée.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function saveTask() {
+    if (!editingTask || !editingTask.title.trim()) return;
+    setBusy(editingTask.id);
+    try {
+      const response = await fetch("/api/mailing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_task",
+          taskId: editingTask.id,
+          title: editingTask.title.trim(),
+          dueAt: editingTask.dueAt
+            ? new Date(editingTask.dueAt).toISOString()
+            : "",
+          priority: editingTask.priority,
+        }),
+      });
+      if (!response.ok) throw new Error();
+      setEditingTask(null);
+      await load();
+    } catch {
+      alert("La modification de la tâche n’a pas pu être enregistrée.");
     } finally {
       setBusy("");
     }
@@ -201,7 +240,7 @@ export default function ActionsPage() {
 
   return (
     <main className="workspace actionPage">
-      <style>{`.actionPage{display:grid;gap:18px}.actionHead{display:flex;justify-content:space-between;align-items:flex-end;gap:20px}.actionHead h1{margin:4px 0 7px}.actionScore{display:flex;gap:8px}.actionScore span{padding:10px 13px;border-radius:11px;background:#fff;border:1px solid #e3e8ed;font-size:11px}.actionScore b{color:#ef3340}.actionGrid{display:grid;grid-template-columns:.85fr 1.15fr;gap:18px}.actionPanel{background:#fff;border:1px solid #e7eaf0;border-radius:17px;padding:20px}.actionPanel h2{margin:2px 0 16px}.actionItem,.replyItem{padding:15px 0;border-top:1px solid #edf0f4}.actionItem:first-of-type,.replyItem:first-of-type{border-top:0}.actionItem header,.replyItem header{display:flex;justify-content:space-between;gap:12px}.actionItem p,.replyItem p{margin:7px 0;color:#687587;font-size:12px;line-height:1.5}.actionButtons,.replyChoice{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.actionButtons button,.replyChoice button{font-size:10px}.replyChoice select{flex:1;min-width:190px;padding:9px;border:1px solid #dce1e9;border-radius:9px;background:#fff}.actionEmpty{padding:18px;border-radius:12px;background:#f4f8f5;color:#28633d;font-size:12px}.confidence{font-size:10px;color:#985500;white-space:nowrap}.confidence.done{color:#176637}.intelPanel{background:#111827;color:#fff;border-radius:18px;padding:21px}.intelPanel h2{margin:3px 0 5px}.intelSummary{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:17px 0}.intelSummary div{padding:12px;background:#ffffff0d;border:1px solid #ffffff18;border-radius:11px}.intelSummary small,.intelSummary b{display:block}.intelSummary b{font-size:21px;margin-top:5px}.intelList{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.intelCard{background:#fff;color:#172033;border-radius:14px;padding:15px}.intelCard header{display:flex;justify-content:space-between;gap:12px}.intelCard h3{margin:0;font-size:15px}.intelCard p{font-size:11px;line-height:1.45;margin:8px 0}.intelReasons{display:flex;gap:5px;flex-wrap:wrap}.intelReasons span{font-size:8px;padding:5px 7px;background:#f2f4f7;border-radius:7px}.intelBars{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:10px 0}.intelBars small{font-size:7px;color:#687587}.intelBars b{display:block;font-size:11px}.intelActions{display:flex;gap:6px;flex-wrap:wrap}.intelActions button{font-size:9px}.intelMeta{color:#687587}@media(max-width:900px){.actionGrid,.intelList{grid-template-columns:1fr}.intelSummary{grid-template-columns:1fr 1fr}.actionHead{align-items:flex-start;flex-direction:column}.actionScore{width:100%}.actionScore span{flex:1}}`}</style>
+      <style>{`.actionPage{display:grid;gap:18px}.actionHead{display:flex;justify-content:space-between;align-items:flex-end;gap:20px}.actionHead h1{margin:4px 0 7px}.actionScore{display:flex;gap:8px}.actionScore span{padding:10px 13px;border-radius:11px;background:#fff;border:1px solid #e3e8ed;font-size:11px}.actionScore b{color:#ef3340}.actionGrid{display:grid;grid-template-columns:.85fr 1.15fr;gap:18px}.actionPanel{background:#fff;border:1px solid #e7eaf0;border-radius:17px;padding:20px}.actionPanel h2{margin:2px 0 16px}.actionItem,.replyItem{padding:15px 0;border-top:1px solid #edf0f4}.actionItem:first-of-type,.replyItem:first-of-type{border-top:0}.actionItem header,.replyItem header{display:flex;justify-content:space-between;gap:12px}.actionItem p,.replyItem p{margin:7px 0;color:#687587;font-size:12px;line-height:1.5}.actionButtons,.replyChoice{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.actionButtons button,.replyChoice button{font-size:10px}.taskEditor{display:grid;gap:10px;margin:12px 0;padding:13px;border:1px solid #e3e8ed;border-radius:11px;background:#f8fafc}.taskEditor label{display:grid;gap:5px;font-size:10px;color:#657386}.taskEditor input{width:100%;padding:9px;border:1px solid #dce1e9;border-radius:8px;background:#fff}.taskEditorFields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.actionDue{font-size:10px!important;color:#8892a0!important}.replyChoice select{flex:1;min-width:190px;padding:9px;border:1px solid #dce1e9;border-radius:9px;background:#fff}.actionEmpty{padding:18px;border-radius:12px;background:#f4f8f5;color:#28633d;font-size:12px}.confidence{font-size:10px;color:#985500;white-space:nowrap}.confidence.done{color:#176637}.intelPanel{background:#111827;color:#fff;border-radius:18px;padding:21px}.intelPanel h2{margin:3px 0 5px}.intelSummary{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:17px 0}.intelSummary div{padding:12px;background:#ffffff0d;border:1px solid #ffffff18;border-radius:11px}.intelSummary small,.intelSummary b{display:block}.intelSummary b{font-size:21px;margin-top:5px}.intelList{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.intelCard{background:#fff;color:#172033;border-radius:14px;padding:15px}.intelCard header{display:flex;justify-content:space-between;gap:12px}.intelCard h3{margin:0;font-size:15px}.intelCard p{font-size:11px;line-height:1.45;margin:8px 0}.intelReasons{display:flex;gap:5px;flex-wrap:wrap}.intelReasons span{font-size:8px;padding:5px 7px;background:#f2f4f7;border-radius:7px}.intelBars{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:10px 0}.intelBars small{font-size:7px;color:#687587}.intelBars b{display:block;font-size:11px}.intelActions{display:flex;gap:6px;flex-wrap:wrap}.intelActions button{font-size:9px}.intelMeta{color:#687587}@media(max-width:900px){.actionGrid,.intelList{grid-template-columns:1fr}.intelSummary{grid-template-columns:1fr 1fr}.actionHead{align-items:flex-start;flex-direction:column}.actionScore{width:100%}.actionScore span{flex:1}.taskEditorFields{grid-template-columns:1fr}}`}</style>
       <style>{`.contactKit{margin:10px 0;padding:10px;border:1px solid #e7eaf0;border-radius:10px;background:#f8f9fb}.contactKit summary{cursor:pointer;font-size:10px;font-weight:700}.contactKit div{padding:10px 0;border-top:1px solid #e5e8ee}.contactKit div:first-of-type{margin-top:9px}.contactKit pre{white-space:pre-wrap;font:10px/1.55 inherit;color:#465267}.contactKit button{font-size:9px}.contactWarning{color:#a4453f!important}.learningPanel{margin:0 0 15px;padding:13px;border:1px solid #ffffff1f;border-radius:12px;background:#ffffff08}.learningPanel summary{cursor:pointer;font-size:11px;font-weight:700}.learningPanel>p{color:#c7cfdb;font-size:10px}.learningGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.learningGrid div{padding:11px;background:#ffffff0b;border-radius:9px}.learningGrid b,.learningGrid span{display:block}.learningGrid b{font-size:10px;margin-bottom:7px}.learningGrid span{font-size:9px;color:#d3dae5;margin-top:5px}@media(max-width:900px){.learningGrid{grid-template-columns:1fr}}`}</style>
       <header className="actionHead">
         <div>
@@ -435,7 +474,89 @@ export default function ActionsPage() {
                   <mark>{task.priority >= 90 ? "Urgent" : "À traiter"}</mark>
                 </header>
                 <p>{task.title}</p>
+                <p className="actionDue">
+                  {task.dueAt
+                    ? "Échéance : " + new Date(task.dueAt).toLocaleString("fr-FR")
+                    : "Sans échéance"}
+                </p>
+                {editingTask?.id === task.id && (
+                  <div className="taskEditor">
+                    <label>
+                      Intitulé
+                      <input
+                        maxLength={200}
+                        value={editingTask.title}
+                        onChange={(event) =>
+                          setEditingTask({ ...editingTask, title: event.target.value })
+                        }
+                      />
+                    </label>
+                    <div className="taskEditorFields">
+                      <label>
+                        Échéance
+                        <input
+                          type="datetime-local"
+                          value={editingTask.dueAt}
+                          onChange={(event) =>
+                            setEditingTask({ ...editingTask, dueAt: event.target.value })
+                          }
+                        />
+                      </label>
+                      <label>
+                        Priorité (0–100)
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={editingTask.priority}
+                          onChange={(event) =>
+                            setEditingTask({
+                              ...editingTask,
+                              priority: Number(event.target.value),
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="actionButtons">
+                      <button
+                        type="button"
+                        className="primary"
+                        disabled={busy === task.id || !editingTask.title.trim()}
+                        onClick={() => void saveTask()}
+                      >
+                        {busy === task.id ? "Enregistrement…" : "Enregistrer"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy === task.id}
+                        onClick={() => setEditingTask(null)}
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="actionButtons">
+                  <button
+                    type="button"
+                    disabled={busy === task.id}
+                    onClick={() =>
+                      setEditingTask(
+                        editingTask?.id === task.id
+                          ? null
+                          : {
+                              id: task.id,
+                              title: task.title,
+                              dueAt: toLocalDateTime(task.dueAt),
+                              priority: task.priority,
+                            },
+                      )
+                    }
+                  >
+                    {editingTask?.id === task.id ? "Fermer" : "Modifier"}
+                  </button>
                   <button
                     className="primary"
                     disabled={busy === task.id}
