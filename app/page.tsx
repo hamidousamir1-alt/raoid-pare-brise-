@@ -295,7 +295,7 @@ export default function Home() {
               Les dossiers marqués « Relance » sont regroupés ici
               automatiquement.
             </p>
-            <a className="primary" href="/prospection">
+            <a className="primary" href="/prospection?status=Relance">
               Lancer les relances
             </a>
           </article>

@@ -175,14 +175,17 @@ export default function ProspectManager() {
       openRecord(p);
     }
   }, [ready, params, items]);
+  const requestedStatus = params.get("status");
   const filtered = useMemo(
     () =>
-      items.filter((x) =>
-        (x.name + x.sector + x.zone + x.address)
-          .toLowerCase()
-          .includes(query.toLowerCase()),
+      items.filter(
+        (x) =>
+          (!requestedStatus || x.status === requestedStatus) &&
+          (x.name + x.sector + x.zone + x.address)
+            .toLowerCase()
+            .includes(query.toLowerCase()),
       ),
-    [items, query],
+    [items, query, requestedStatus],
   );
   function fresh(): Prospect {
     return {
@@ -473,6 +476,31 @@ export default function ProspectManager() {
           ＋ Ajouter un prospect
         </button>
       </div>
+      {requestedStatus === "Relance" && (
+        <div
+          role="status"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            padding: "11px 14px",
+            border: "1px solid #f2d3d5",
+            borderRadius: 11,
+            background: "#fff7f7",
+            color: "#8f2830",
+            fontSize: 11,
+          }}
+        >
+          <b>
+            Relances uniquement · {filtered.length} entreprise
+            {filtered.length > 1 ? "s" : ""}
+          </b>
+          <a href="/prospection" style={{ color: "#8f2830", fontWeight: 700 }}>
+            Afficher toutes les entreprises
+          </a>
+        </div>
+      )}
       <div className="prospectcards">
         {filtered.map((p) => (
           <article
@@ -502,6 +530,13 @@ export default function ProspectManager() {
             <button className="edit">Modifier →</button>
           </article>
         ))}
+        {!filtered.length && (
+          <p className="muted" style={{ padding: "18px 4px" }}>
+            {requestedStatus === "Relance"
+              ? "Aucune entreprise n’est actuellement marquée « Relance »."
+              : "Aucune entreprise ne correspond à cette recherche."}
+          </p>
+        )}
       </div>
       {open && editing && (
         <div className="modalback" onMouseDown={() => setOpen(false)}>
