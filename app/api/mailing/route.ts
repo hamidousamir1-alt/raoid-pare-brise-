@@ -207,6 +207,39 @@ export async function POST(req: NextRequest) {
     );
   }
   try {
+    if (x.action === "update_task") {
+      const id = String(x.taskId || "");
+      const title = String(x.title || "").trim();
+      const priority = Number(x.priority);
+      const rawDueAt = String(x.dueAt || "").trim();
+      const dueAt = rawDueAt ? new Date(rawDueAt) : null;
+      if (
+        !UUID.test(id) ||
+        !title ||
+        title.length > 200 ||
+        !Number.isInteger(priority) ||
+        priority < 0 ||
+        priority > 100 ||
+        (dueAt && Number.isNaN(dueAt.getTime()))
+      )
+        return NextResponse.json(
+          { error: "invalid_task" },
+          { status: 400, headers: noStore },
+        );
+      const changed = await db().begin(async (sql) => {
+        const existing = await sql`select prospect_id as "prospectId" from sales_tasks where id=${id} and status='open' for update`;
+        if (!existing.length) return null;
+        await sql`update sales_tasks set title=${title},priority=${priority},due_at=${dueAt?.toISOString() || null},updated_at=now() where id=${id} and status='open'`;
+        await sql`insert into prospect_events(prospect_id,event_type,payload) values(${existing[0].prospectId},'sales_task_updated',${sql.json({ taskId: id, title, priority, dueAt: dueAt?.toISOString() || null })})`;
+        return existing[0];
+      });
+      if (!changed)
+        return NextResponse.json(
+          { error: "not_found" },
+          { status: 404, headers: noStore },
+        );
+      return NextResponse.json({ ok: true }, { headers: noStore });
+    }
     if (x.action === "complete_task" || x.action === "dismiss_task") {
       const id = String(x.taskId || ""),
         status = x.action === "complete_task" ? "completed" : "dismissed";
