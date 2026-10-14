@@ -107,6 +107,7 @@ export default function CallsPage() {
   const [error, setError] = useState("");
   const [callFeedback, setCallFeedback] = useState("");
   const [callFeedbackError, setCallFeedbackError] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   async function load() {
     try {
@@ -290,7 +291,7 @@ export default function CallsPage() {
   const minutes = Math.round((data?.stats.todaySeconds || 0) / 60);
   return (
     <main className="workspace callsPage">
-      <style>{`.callsPage{display:grid;gap:18px}.callsHead{display:flex;justify-content:space-between;align-items:flex-end;gap:18px}.callsHead h1{margin:4px 0 7px}.callKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.callKpis article,.callPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:19px}.callKpis small{display:block;color:#7b8797;font-size:9px}.callKpis b{display:block;font-size:24px;margin-top:7px}.callsGrid{display:grid;grid-template-columns:.92fr 1.08fr;gap:18px;align-items:start}.callForm{display:grid;gap:13px;height:min(820px,calc(100vh - 230px));min-height:560px;overflow-y:auto;align-content:start;scrollbar-gutter:stable}.callForm label{display:grid;gap:6px;color:#657386;font-size:10px}.callForm input,.callForm select,.callForm textarea{width:100%;padding:11px;border:1px solid #dce2e9;border-radius:9px;background:#fff}.callForm textarea{height:90px;min-height:90px;max-height:90px;resize:none;overflow-y:auto}.callPair{display:grid;grid-template-columns:1fr 1fr;gap:11px}.callSuggestion{padding:13px;border-radius:11px;background:#f6f8fa;border-left:3px solid #ef3340}.callSuggestion p{margin:0 0 10px;font-size:11px;color:#5f6d7f}.selectedCall{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:10px;background:#111d2b;color:#fff}.selectedCall small{display:block;color:#aeb8c5;margin-top:4px}.selectedCall a{color:#fff;text-decoration:none;font-size:18px}.callLine{padding:14px 0;border-top:1px solid #edf0f4}.callLine:first-of-type{border-top:0}.callLine header{display:flex;justify-content:space-between;gap:10px}.callLine p{color:#667487;font-size:11px;line-height:1.5;margin:7px 0}.callLine small{color:#8590a0}.callBadge{white-space:nowrap;color:#bd2934;background:#fff0f1;border-radius:7px;padding:5px 7px;font-size:9px}.callFlow{font-size:10px;color:#748094}.callEmpty{padding:18px;background:#f4f8f5;color:#28633d;border-radius:11px}.callFeedback{margin:0;padding:11px 13px;border-radius:9px;background:#f1f8f2;color:#28633d;font-size:11px;line-height:1.5}.callFeedback.isError{background:#fff4f3;color:#a62a2a}.callLookup{display:grid;gap:8px}.callLookupResults{display:grid;gap:5px;max-height:190px;overflow:auto}.callLookupResults button{display:grid;gap:4px;text-align:left;border:1px solid #e4e9ef;border-radius:9px;padding:10px;background:#f8fafc;color:#172334;cursor:pointer}.callLookupResults button:hover{border-color:#ef3340}.callLookupResults small,.callLookupHint{color:#768396;font-size:10px;margin:0}.callAddProspect{justify-self:start;border:0;background:transparent;color:#c52c36;font-weight:700;padding:4px 0;cursor:pointer}.quickProspectForm{display:grid;gap:11px;padding:14px;border:1px solid #e5e9ef;border-radius:11px;background:#fafbfc}.quickProspectForm>b{font-size:12px;color:#172334}.quickProspectForm .primary{justify-self:start}@media(max-width:900px){.callsGrid{grid-template-columns:1fr}.callForm{height:min(760px,calc(100dvh - 190px));min-height:480px}.callKpis{grid-template-columns:1fr 1fr}.callsHead{align-items:flex-start;flex-direction:column}.callPair{grid-template-columns:1fr}}`}</style>
+      <style>{`.callsPage{display:grid;gap:18px}.callsHead{display:flex;justify-content:space-between;align-items:flex-end;gap:18px}.callsHead h1{margin:4px 0 7px}.callKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.callKpis article,.callPanel{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:19px}.callKpis small{display:block;color:#7b8797;font-size:9px}.callKpis b{display:block;font-size:24px;margin-top:7px}.callsGrid{display:grid;grid-template-columns:.92fr 1.08fr;gap:18px;align-items:start}.callForm{display:grid;gap:13px;height:min(820px,calc(100vh - 230px));min-height:560px;overflow-y:auto;align-content:start;scrollbar-gutter:stable}.callForm label{display:grid;gap:6px;color:#657386;font-size:10px}.callForm input,.callForm select,.callForm textarea{width:100%;padding:11px;border:1px solid #dce2e9;border-radius:9px;background:#fff}.callForm textarea{height:90px;min-height:90px;max-height:90px;resize:none;overflow-y:auto}.callPair{display:grid;grid-template-columns:1fr 1fr;gap:11px}.callSuggestion{padding:13px;border-radius:11px;background:#f6f8fa;border-left:3px solid #ef3340}.callSuggestion p{margin:0 0 10px;font-size:11px;color:#5f6d7f}.selectedCall{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:10px;background:#111d2b;color:#fff}.selectedCall small{display:block;color:#aeb8c5;margin-top:4px}.selectedCall a{color:#fff;text-decoration:none;font-size:18px}.callLine{padding:14px 0;border-top:1px solid #edf0f4}.callLine:first-of-type{border-top:0}.callLine header{display:flex;justify-content:space-between;gap:10px}.callLine p{color:#667487;font-size:11px;line-height:1.5;margin:7px 0}.callLine small{color:#8590a0}.callBadge{white-space:nowrap;color:#bd2934;background:#fff0f1;border-radius:7px;padding:5px 7px;font-size:9px}.callFlow{font-size:10px;color:#748094}.callEmpty{padding:18px;background:#f4f8f5;color:#28633d;border-radius:11px}.callHistoryPanel{padding:0;overflow:hidden}.callHistoryToggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:19px;background:transparent;border:0;text-align:left;cursor:pointer;color:inherit}.callHistoryToggle h2{margin:3px 0 0}.callHistoryMeta{display:flex;align-items:center;gap:12px;color:#758195;font-size:11px}.callHistoryCount{padding:5px 9px;border-radius:999px;background:#f3f5f8;color:#465365;font-weight:700}.callHistoryChevron{font-size:17px;transition:transform .2s ease}.callHistoryChevron.open{transform:rotate(180deg)}.callHistoryContent{padding:0 19px 10px;animation:historyReveal .18s ease-out}@keyframes historyReveal{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}.callFeedback{margin:0;padding:11px 13px;border-radius:9px;background:#f1f8f2;color:#28633d;font-size:11px;line-height:1.5}.callFeedback.isError{background:#fff4f3;color:#a62a2a}.callLookup{display:grid;gap:8px}.callLookupResults{display:grid;gap:5px;max-height:190px;overflow:auto}.callLookupResults button{display:grid;gap:4px;text-align:left;border:1px solid #e4e9ef;border-radius:9px;padding:10px;background:#f8fafc;color:#172334;cursor:pointer}.callLookupResults button:hover{border-color:#ef3340}.callLookupResults small,.callLookupHint{color:#768396;font-size:10px;margin:0}.callAddProspect{justify-self:start;border:0;background:transparent;color:#c52c36;font-weight:700;padding:4px 0;cursor:pointer}.quickProspectForm{display:grid;gap:11px;padding:14px;border:1px solid #e5e9ef;border-radius:11px;background:#fafbfc}.quickProspectForm>b{font-size:12px;color:#172334}.quickProspectForm .primary{justify-self:start}@media(max-width:900px){.callsGrid{grid-template-columns:1fr}.callForm{height:min(760px,calc(100dvh - 190px));min-height:480px}.callKpis{grid-template-columns:1fr 1fr}.callsHead{align-items:flex-start;flex-direction:column}.callPair{grid-template-columns:1fr}}`}</style>
       <header className="callsHead">
         <div>
           <p className="eyebrow">SUIVI TÉLÉPHONIQUE</p>
@@ -596,9 +597,25 @@ export default function CallsPage() {
             ))}
           </datalist>
         </form>
-        <section className="callPanel">
-          <p className="eyebrow">HISTORIQUE</p>
-          <h2>Derniers appels</h2>
+        <section className="callPanel callHistoryPanel">
+          <button
+            className="callHistoryToggle"
+            type="button"
+            aria-expanded={historyOpen}
+            aria-controls="call-history-content"
+            onClick={() => setHistoryOpen((open) => !open)}
+          >
+            <div>
+              <p className="eyebrow">HISTORIQUE</p>
+              <h2>Derniers appels</h2>
+            </div>
+            <span className="callHistoryMeta">
+              <span className="callHistoryCount">{data?.calls.length || 0}</span>
+              <span>{historyOpen ? "Réduire" : "Afficher"}</span>
+              <span className={`callHistoryChevron${historyOpen ? " open" : ""}`} aria-hidden="true">⌄</span>
+            </span>
+          </button>
+          {historyOpen && <div className="callHistoryContent" id="call-history-content">
           {data?.calls.length ? (
             data.calls.map((call) => (
               <article className="callLine" key={call.id}>
@@ -628,6 +645,7 @@ export default function CallsPage() {
           ) : (
             <p className="callEmpty">Aucun appel enregistré pour le moment.</p>
           )}
+          </div>}
         </section>
       </section>
     </main>
