@@ -50,6 +50,23 @@ type Form = {
   reminderDay: boolean;
   reminderHour: boolean;
 };
+type RoutineTask = {
+  id: string;
+  title: string;
+  details?: string | null;
+  period: "daily" | "weekly" | "monthly" | "yearly";
+  priority: number;
+  dueAt: string | null;
+  recurring: boolean;
+};
+type TaskForm = {
+  title: string;
+  details: string;
+  dueAt: string;
+  period: RoutineTask["period"];
+  priority: number;
+  recurring: boolean;
+};
 type CompletionForm = {
   outcome: string;
   nextAction: string;
@@ -95,10 +112,13 @@ const statusLabels: Record<string, string> = {
 
 export default function AgendaPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [tasks, setTasks] = useState<RoutineTask[]>([]);
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [week, setWeek] = useState(() => monday(new Date()));
   const [creating, setCreating] = useState(false);
+  const [creatingTask, setCreatingTask] = useState(false);
   const [selected, setSelected] = useState<Appointment | null>(null);
+  const [selectedTask, setSelectedTask] = useState<RoutineTask | null>(null);
   const [completing, setCompleting] = useState<Appointment | null>(null);
   const [completion, setCompletion] = useState<CompletionForm>(() => {
     const followUp = new Date();
@@ -111,6 +131,19 @@ export default function AgendaPage() {
     };
   });
   const [busy, setBusy] = useState(false);
+  const [taskForm, setTaskForm] = useState<TaskForm>(() => {
+    const due = new Date();
+    due.setMinutes(0, 0, 0);
+    due.setHours(due.getHours() + 1);
+    return {
+      title: "",
+      details: "",
+      dueAt: localInput(due),
+      period: "daily",
+      priority: 60,
+      recurring: false,
+    };
+  });
   const start = new Date(Date.now() + 86400_000);
   start.setHours(10, 0, 0, 0);
   const [form, setForm] = useState<Form>(() => ({
@@ -141,11 +174,14 @@ export default function AgendaPage() {
     const from = week.toISOString(),
       end = new Date(week);
     end.setDate(end.getDate() + 7);
-    const response = await fetch(
-      `/api/appointments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(end.toISOString())}`,
-      { cache: "no-store" },
-    );
-    if (response.status === 401) {
+    const [response, taskResponse] = await Promise.all([
+      fetch(
+        `/api/appointments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(end.toISOString())}`,
+        { cache: "no-store" },
+      ),
+      fetch("/api/routines", { cache: "no-store" }),
+    ]);
+    if (response.status === 401 || taskResponse.status === 401) {
       location.href = "/login";
       return;
     }
@@ -153,6 +189,10 @@ export default function AgendaPage() {
     const payload = await response.json();
     setAppointments(payload.appointments || []);
     setProspects(payload.prospects || []);
+    if (taskResponse.ok) {
+      const taskPayload = await taskResponse.json();
+      setTasks(taskPayload.tasks || []);
+    }
     if (!form.prospectId && payload.prospects?.[0])
       setForm((old) => ({
         ...old,
@@ -225,6 +265,53 @@ export default function AgendaPage() {
       setSelected(null);
   }
 
+  async function createTask(event: React.FormEvent) {
+    event.preventDefault();
+    if (!taskForm.title.trim() || !taskForm.dueAt) return;
+    setBusy(true);
+    try {
+      const response = await fetch("/api/routines", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...taskForm,
+          title: taskForm.title.trim(),
+          dueAt: new Date(taskForm.dueAt).toISOString(),
+        }),
+      });
+      if (response.status === 401) {
+        location.href = "/login";
+        return;
+      }
+      if (!response.ok) throw new Error();
+      setCreatingTask(false);
+      setTaskForm((old) => ({ ...old, title: "", details: "" }));
+      await load();
+    } catch {
+      alert("La tâche n’a pas pu être enregistrée.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function completeTask(task: RoutineTask) {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/routines", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "close", id: task.id }),
+      });
+      if (!response.ok) throw new Error();
+      setSelectedTask(null);
+      await load();
+    } catch {
+      alert("La tâche n’a pas pu être clôturée.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function complete(event: React.FormEvent) {
     event.preventDefault();
     if (!completing) return;
@@ -245,11 +332,14 @@ export default function AgendaPage() {
   const today = new Date().toDateString(),
     todayAppointments = appointments.filter(
       (appointment) => new Date(appointment.startsAt).toDateString() === today,
+    ),
+    todayTasks = tasks.filter(
+      (task) => task.dueAt && new Date(task.dueAt).toDateString() === today,
     );
 
   return (
     <main className="workspace agendaPage">
-      <style>{`.agendaPage{display:grid;gap:18px}.agendaHead{display:flex;justify-content:space-between;align-items:flex-end;gap:20px}.agendaHead h1{margin:4px 0 7px}.agendaActions{display:flex;gap:8px}.weekNav{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e7eaf0;border-radius:14px;padding:11px 14px}.weekNav button{width:36px;height:34px}.weekNav b{font-size:13px}.weekGrid{display:grid;grid-template-columns:repeat(7,minmax(135px,1fr));gap:8px;overflow-x:auto}.dayColumn{min-height:420px;padding:11px;background:#eef2f5;border-radius:14px}.dayColumn.today{box-shadow:inset 0 0 0 2px #ef3340}.dayColumn>header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.dayColumn>header small{color:#7c8797}.appointmentCard{width:100%;margin-bottom:8px;padding:11px;text-align:left;background:#fff;border:1px solid #e2e7ec;border-radius:11px}.appointmentCard time,.appointmentCard small{display:block;color:#778396;font-size:9px}.appointmentCard b{display:block;margin:5px 0;font-size:11px}.appointmentCard mark{display:inline-block;margin-top:7px}.agendaToday{display:grid;grid-template-columns:.7fr 1.3fr;gap:16px}.agendaPanel{padding:20px;background:#fff;border:1px solid #e7eaf0;border-radius:16px}.agendaPanel h2{margin:3px 0 15px}.todayLine{display:flex;justify-content:space-between;gap:15px;padding:12px 0;border-top:1px solid #edf0f4}.todayLine:first-of-type{border:0}.appointmentDetail p{color:#647185;font-size:12px;line-height:1.55}.detailButtons{display:flex;gap:8px;flex-wrap:wrap}.detailButtons .dangerButton{color:#b32632;border:1px solid #f0c4c7;background:#fff7f7}.appointmentForm{display:grid;grid-template-columns:1fr 1fr;gap:13px}.appointmentForm label{font-size:10px;color:#5f6b7d}.appointmentForm input,.appointmentForm select,.appointmentForm textarea{display:block;width:100%;margin-top:6px;padding:10px;border:1px solid #dce1e9;border-radius:9px}.appointmentForm .full{grid-column:1/-1}.modalSubmit{width:100%;margin-top:16px}@media(max-width:800px){.agendaHead{align-items:flex-start;flex-direction:column}.agendaActions{width:100%}.agendaActions button{flex:1}.weekGrid{grid-template-columns:repeat(7,82vw)}.agendaToday{grid-template-columns:1fr}.appointmentForm{grid-template-columns:1fr}.appointmentForm .full{grid-column:1}.modal{width:calc(100% - 24px);max-height:92vh;overflow:auto}.modalSubmit{min-height:48px}}`}</style>
+      <style>{`.agendaPage{display:grid;gap:18px}.agendaHead{display:flex;justify-content:space-between;align-items:flex-end;gap:20px}.agendaHead h1{margin:4px 0 7px}.agendaActions{display:flex;gap:8px}.weekNav{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e7eaf0;border-radius:14px;padding:11px 14px}.weekNav button{width:36px;height:34px}.weekNav b{font-size:13px}.weekGrid{display:grid;grid-template-columns:repeat(7,minmax(135px,1fr));gap:8px;overflow-x:auto}.dayColumn{min-height:420px;padding:11px;background:#eef2f5;border-radius:14px}.dayColumn.today{box-shadow:inset 0 0 0 2px #ef3340}.dayColumn>header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.dayColumn>header small{color:#7c8797}.appointmentCard{width:100%;margin-bottom:8px;padding:11px;text-align:left;background:#fff;border:1px solid #e2e7ec;border-radius:11px}.appointmentCard time,.appointmentCard small{display:block;color:#778396;font-size:9px}.appointmentCard b{display:block;margin:5px 0;font-size:11px}.appointmentCard mark{display:inline-block;margin-top:7px}.taskCard{width:100%;margin-bottom:8px;padding:11px;text-align:left;background:#fff8f7;border:1px solid #f2d7d8;border-radius:11px}.taskCard time,.taskCard small{display:block;color:#778396;font-size:9px}.taskCard b{display:block;margin:5px 0;font-size:11px;color:#8f2630}.taskCard mark{display:inline-block;margin-top:7px;background:#ffe8e9;color:#9d2831}.agendaToday{display:grid;grid-template-columns:.7fr 1.3fr;gap:16px}.agendaPanel{padding:20px;background:#fff;border:1px solid #e7eaf0;border-radius:16px}.agendaPanel h2{margin:3px 0 15px}.todayLine{display:flex;justify-content:space-between;gap:15px;padding:12px 0;border-top:1px solid #edf0f4}.todayLine:first-of-type{border:0}.appointmentDetail p{color:#647185;font-size:12px;line-height:1.55}.detailButtons{display:flex;gap:8px;flex-wrap:wrap}.detailButtons .dangerButton{color:#b32632;border:1px solid #f0c4c7;background:#fff7f7}.appointmentForm{display:grid;grid-template-columns:1fr 1fr;gap:13px}.appointmentForm label{font-size:10px;color:#5f6b7d}.appointmentForm input,.appointmentForm select,.appointmentForm textarea{display:block;width:100%;margin-top:6px;padding:10px;border:1px solid #dce1e9;border-radius:9px}.appointmentForm .full{grid-column:1/-1}.modalSubmit{width:100%;margin-top:16px}@media(max-width:800px){.agendaHead{align-items:flex-start;flex-direction:column}.agendaActions{width:100%}.agendaActions button{flex:1}.weekGrid{grid-template-columns:repeat(7,82vw)}.agendaToday{grid-template-columns:1fr}.appointmentForm{grid-template-columns:1fr}.appointmentForm .full{grid-column:1}.modal{width:calc(100% - 24px);max-height:92vh;overflow:auto}.modalSubmit{min-height:48px}}`}</style>
       <header className="agendaHead">
         <div>
           <p className="eyebrow">RENDEZ-VOUS & SUIVI</p>
@@ -262,6 +352,7 @@ export default function AgendaPage() {
           <button onClick={() => setWeek(monday(new Date()))}>
             Aujourd’hui
           </button>
+          <button onClick={() => setCreatingTask(true)}>＋ Nouvelle tâche</button>
           <button className="primary" onClick={() => setCreating(true)}>
             ＋ Nouveau rendez-vous
           </button>
@@ -315,7 +406,10 @@ export default function AgendaPage() {
                 <button
                   className="appointmentCard"
                   key={appointment.id}
-                  onClick={() => setSelected(appointment)}
+                  onClick={() => {
+                    setSelected(appointment);
+                    setSelectedTask(null);
+                  }}
                 >
                   <time>
                     {new Date(appointment.startsAt).toLocaleTimeString(
@@ -331,6 +425,32 @@ export default function AgendaPage() {
                   <mark>{statusLabels[appointment.status]}</mark>
                 </button>
               ))}
+              {tasks
+                .filter(
+                  (task) =>
+                    task.dueAt &&
+                    new Date(task.dueAt).toDateString() === day.toDateString(),
+                )
+                .map((task) => (
+                  <button
+                    className="taskCard"
+                    key={task.id}
+                    onClick={() => {
+                      setSelectedTask(task);
+                      setSelected(null);
+                    }}
+                  >
+                    <time>
+                      {new Date(task.dueAt!).toLocaleTimeString("fr-FR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })} · Tâche
+                    </time>
+                    <b>{task.title}</b>
+                    <small>Priorité {task.priority}/100</small>
+                    <mark>À faire</mark>
+                  </button>
+                ))}
             </article>
           );
         })}
@@ -338,7 +458,9 @@ export default function AgendaPage() {
       <section className="agendaToday">
         <article className="agendaPanel">
           <p className="eyebrow">AUJOURD’HUI</p>
-          <h2>{todayAppointments.length} rendez-vous</h2>
+          <h2>
+            {todayAppointments.length} rendez-vous · {todayTasks.length} tâche(s)
+          </h2>
           {todayAppointments.map((appointment) => (
             <div className="todayLine" key={appointment.id}>
               <div>
@@ -353,16 +475,55 @@ export default function AgendaPage() {
               </time>
             </div>
           ))}
-          {!todayAppointments.length && (
-            <p className="muted">Aucun rendez-vous aujourd’hui.</p>
+          {todayTasks.map((task) => (
+            <div className="todayLine" key={task.id}>
+              <div>
+                <b>{task.title}</b>
+                <small>{task.details || "Tâche commerciale"}</small>
+              </div>
+              <time>
+                {new Date(task.dueAt!).toLocaleTimeString("fr-FR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </time>
+            </div>
+          ))}
+          {!todayAppointments.length && !todayTasks.length && (
+            <p className="muted">Aucun rendez-vous ni tâche aujourd’hui.</p>
           )}
         </article>
         <article className="agendaPanel">
           <p className="eyebrow">PRÉPARATION AUTOMATIQUE</p>
           <h2>
-            {selected ? selected.prospect : "Sélectionnez un rendez-vous"}
+            {selectedTask?.title ||
+              (selected ? selected.prospect : "Sélectionnez un élément de l’agenda")}
           </h2>
-          {selected ? (
+          {selectedTask ? (
+            <div className="appointmentDetail">
+              <p>
+                <b>Type :</b> Tâche commerciale
+                <br />
+                <b>Échéance :</b>{" "}
+                {selectedTask.dueAt
+                  ? new Date(selectedTask.dueAt).toLocaleString("fr-FR")
+                  : "À préciser"}
+                <br />
+                <b>Priorité :</b> {selectedTask.priority}/100
+                <br />
+                <b>Notes :</b> {selectedTask.details || "Aucune note"}
+              </p>
+              <div className="detailButtons">
+                <button
+                  className="primary"
+                  disabled={busy}
+                  onClick={() => completeTask(selectedTask)}
+                >
+                  Marquer comme faite
+                </button>
+              </div>
+            </div>
+          ) : selected ? (
             <div className="appointmentDetail">
               <p>
                 <b>Objectif :</b> {selected.objective || "À préciser"}
@@ -425,12 +586,123 @@ export default function AgendaPage() {
             </div>
           ) : (
             <p className="muted">
-              Le CRM affichera ici l’objectif, le contact, les objections, les
-              notes et l’itinéraire.
+              Sélectionne un rendez-vous ou une tâche pour consulter son détail
+              et accéder aux actions.
             </p>
           )}
         </article>
       </section>
+      {creatingTask && (
+        <div className="modalback" onMouseDown={() => setCreatingTask(false)}>
+          <form
+            className="modal"
+            onSubmit={createTask}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modalhead">
+              <div>
+                <p className="eyebrow">NOUVELLE TÂCHE</p>
+                <h2>Ajouter à l’agenda</h2>
+              </div>
+              <button type="button" onClick={() => setCreatingTask(false)}>
+                ×
+              </button>
+            </div>
+            <div className="appointmentForm">
+              <label className="full">
+                Intitulé
+                <input
+                  required
+                  maxLength={180}
+                  value={taskForm.title}
+                  onChange={(event) =>
+                    setTaskForm({ ...taskForm, title: event.target.value })
+                  }
+                  placeholder="Ex. Rappeler l’entreprise Martin"
+                />
+              </label>
+              <label className="full">
+                Notes / résultat attendu
+                <textarea
+                  rows={3}
+                  maxLength={1000}
+                  value={taskForm.details}
+                  onChange={(event) =>
+                    setTaskForm({ ...taskForm, details: event.target.value })
+                  }
+                  placeholder="Contexte ou résultat à obtenir"
+                />
+              </label>
+              <label className="full">
+                Date et heure
+                <input
+                  required
+                  type="datetime-local"
+                  value={taskForm.dueAt}
+                  onChange={(event) =>
+                    setTaskForm({ ...taskForm, dueAt: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Horizon
+                <select
+                  value={taskForm.period}
+                  onChange={(event) =>
+                    setTaskForm({
+                      ...taskForm,
+                      period: event.target.value as RoutineTask["period"],
+                    })
+                  }
+                >
+                  <option value="daily">Aujourd’hui</option>
+                  <option value="weekly">Cette semaine</option>
+                  <option value="monthly">Ce mois</option>
+                  <option value="yearly">Cette année</option>
+                </select>
+              </label>
+              <label>
+                Priorité
+                <select
+                  value={taskForm.priority}
+                  onChange={(event) =>
+                    setTaskForm({
+                      ...taskForm,
+                      priority: Number(event.target.value),
+                    })
+                  }
+                >
+                  <option value={90}>Critique · 90</option>
+                  <option value={75}>Haute · 75</option>
+                  <option value={60}>Normale · 60</option>
+                  <option value={35}>Basse · 35</option>
+                </select>
+              </label>
+              <label className="check full">
+                <input
+                  type="checkbox"
+                  checked={taskForm.recurring}
+                  onChange={(event) =>
+                    setTaskForm({ ...taskForm, recurring: event.target.checked })
+                  }
+                />
+                Répéter après chaque validation
+              </label>
+            </div>
+            <div className="modalactions">
+              <button type="button" onClick={() => setCreatingTask(false)}>
+                Annuler
+              </button>
+              <button
+                className="primary"
+                disabled={busy || !taskForm.title.trim()}
+              >
+                Ajouter la tâche
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
       {creating && (
         <div className="modalback" onMouseDown={() => setCreating(false)}>
           <form
