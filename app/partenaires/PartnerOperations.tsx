@@ -306,16 +306,15 @@ export default function PartnerOperations() {
         </article>
       </section>
       {portfolio.length > 0 && (
-        <section className="opsPanel">
-          <p className="eyebrow">PORTEFEUILLE CLIENT · ABC</p>
-          <h2>Priorités commerciales</h2>
-          <p className="muted">CA généré enregistré, toutes périodes. A : jusqu’à environ 80 %, B : jusqu’à 95 %, C : reste. Le client franchissant le seuil reste dans la classe précédente.</p>
-          <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",textAlign:"left"}}>
-              <thead><tr><th>Partenaire</th><th>CA</th><th>Poids</th><th>Cumul</th><th>Classe</th></tr></thead>
-              <tbody>{portfolio.map(p => <tr key={p.id}><td><button onClick={() => {setPartnerId(p.id);setVehicleId("");}}>{p.name}</button></td><td>{money(p.revenue)}</td><td>{p.share.toFixed(1)} %</td><td>{p.cumulative.toFixed(1)} %</td><td>{p.category}</td></tr>)}</tbody>
-            </table>
-          </div>
+        <section className="opsPanel abcPanel">
+          <style>{`.abcPanel .abcHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}.abcPanel .abcHeader h2{margin:6px 0}.abcPanel .abcTotal{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}.abcLegend{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.abcLegend span{padding:7px 12px;border:1px solid #e7eaf0;border-radius:8px;font-size:11px;color:#657386}.abcTable{width:100%;border-collapse:collapse;text-align:left;font-variant-numeric:tabular-nums}.abcTable th{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#657386;background:#f5f6f8;padding:12px}.abcTable td{padding:13px 12px;border-bottom:1px solid #edf0f4;font-size:12px}.abcTable tr:last-child td{border-bottom:0}.abcTable .abcName{background:none;border:0;padding:0;color:inherit;font:inherit;font-weight:650;text-align:left;cursor:pointer}.abcName:hover{text-decoration:underline}.abcName:focus-visible{outline:2px solid #ef3340;outline-offset:4px}.abcClass{display:inline-flex;align-items:center;border-radius:7px;padding:5px 9px;font-size:11px;font-weight:650;background:#eef2f6;color:#536174;white-space:nowrap}.abcClass.A{background:#fcebed;color:#b42332}.abcClass.B{background:#172536;color:white}.abcTrack{height:4px;background:#edf0f4;border-radius:4px;margin-top:6px;min-width:45px}.abcTrack span{display:block;height:100%;background:#ef3340;border-radius:4px}@media(max-width:600px){.abcTable th,.abcTable td{padding:10px 7px}.abcTable{min-width:480px}.abcPanel .abcTotal{font-size:18px}}`}</style>
+          <div className="abcHeader"><div><p className="eyebrow">PORTEFEUILLE CLIENT · ABC</p><h2>Priorités commerciales</h2><p className="muted">Classement selon le chiffre d’affaires généré.</p></div><div><p className="eyebrow">CA TOTAL</p><div className="abcTotal">{money(portfolio.reduce((sum,p)=>sum+p.revenue,0))}</div></div></div>
+          <div className="abcLegend"><span>A · Stratégiques · {portfolio.filter(p=>p.category==="A"&&p.revenue>0).length}</span><span>B · À développer · {portfolio.filter(p=>p.category==="B"&&p.revenue>0).length}</span><span>C · À suivre · {portfolio.filter(p=>p.category==="C"&&p.revenue>0).length}</span><span>Sans CA · {portfolio.filter(p=>!p.revenue).length}</span></div>
+          <div style={{overflowX:"auto"}}><table className="abcTable">
+            <thead><tr><th>Partenaire</th><th>CA généré</th><th>Poids</th><th>Cumul</th><th>Classe</th></tr></thead>
+            <tbody>{portfolio.map(p=><tr key={p.id}><td><button className="abcName" onClick={()=>{setPartnerId(p.id);setVehicleId("");}}>{p.name} →</button></td><td><b>{money(p.revenue)}</b></td><td>{p.share.toLocaleString("fr-FR",{maximumFractionDigits:1})} %<div className="abcTrack"><span style={{width:p.share+"%"}}/></div></td><td>{p.cumulative.toLocaleString("fr-FR",{maximumFractionDigits:1})} %</td><td><span className={"abcClass "+(p.revenue?p.category:"")}>{p.revenue?p.category:"Non classé"}</span></td></tr>)}</tbody>
+          </table></div>
+          <p className="muted" style={{fontSize:11,marginTop:12}}>Seuils cumulés : A ≈ 80 %, B ≈ 95 %, C au-delà. Sans CA, le partenaire reste non classé.</p>
         </section>
       )}
       {partner ? (

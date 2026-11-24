@@ -172,6 +172,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             )}
           </div>
+          <Link className="quickAdd" href="/performance">↗ Performance</Link>
           <Link className="quickAdd" href="/prospection">
             ＋ Nouveau prospect
           </Link>
