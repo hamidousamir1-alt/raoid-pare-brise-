@@ -215,7 +215,9 @@ export async function POST(req: NextRequest) {
           await sql`select prospect_id as "prospectId",status,amount from service_cases where id=${caseId} for update`;
         if (!before.length) return [];
         const changed =
-          await sql`update service_cases set status=${status},scheduled_at=case when ${status}='scheduled' then ${scheduledAt?.toISOString() || null} else scheduled_at end,completed_at=case when ${status}='completed' then coalesce(completed_at,now()) else completed_at end,amount=${amount},updated_at=now() where id=${caseId} returning prospect_id as "prospectId"`;
+          await sql`update service_cases set status=${status},scheduled_at=case when ${status}='scheduled' then ${scheduledAt?.toISOString() || null} else scheduled_at end,completed_at=case when ${status}='completed' then coalesce(completed_at,now()) else null end,amount=${amount},updated_at=now() where id=${caseId} returning prospect_id as "prospectId"`;
+        const delta=(status==="completed"?amount:0)-(before[0].status==="completed"?Number(before[0].amount):0);
+        if(delta!==0) await sql`update prospects set generated_revenue=greatest(0,generated_revenue+${delta}),updated_at=now() where id=${before[0].prospectId}`;
         if (status === "completed") {
           const settings =
             await sql`select enabled,numeric_value as days from automation_settings where setting_key='satisfaction_follow_up'`;
@@ -224,7 +226,7 @@ export async function POST(req: NextRequest) {
             Date.now() + Number(settings[0]?.days ?? 2) * 86400000,
           ).toISOString();
           if (before[0].status !== "completed")
-            await sql`update prospects set generated_revenue=generated_revenue+${amount},next_action=${enabled ? "Demander un retour de satisfaction" : "Suivre le partenaire"},next_action_at=${enabled ? satisfactionDue : null},updated_at=now() where id=${before[0].prospectId}`;
+            await sql`update prospects set next_action=${enabled ? "Demander un retour de satisfaction" : "Suivre le partenaire"},next_action_at=${enabled ? satisfactionDue : null},updated_at=now() where id=${before[0].prospectId}`;
           await sql`update sales_tasks set status='completed',completed_at=now(),updated_at=now() where service_case_id=${caseId} and status='open'`;
           if (enabled)
             await sql`insert into sales_tasks(prospect_id,service_case_id,task_type,title,priority,due_at,source) values(${before[0].prospectId},${caseId},'satisfaction','Demander un retour de satisfaction',75,${satisfactionDue},'partner') on conflict(service_case_id,task_type) where service_case_id is not null do nothing`;
