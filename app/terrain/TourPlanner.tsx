@@ -139,10 +139,19 @@ function orderNearest(items: Stop[], start: Position) {
     });
     const next = left.splice(best, 1)[0],
       pos = point(next);
-    ordered.push({ ...next, distance: Number.isFinite(bestKm) ? bestKm : 3 });
+    ordered.push({ ...next, distance: Number.isFinite(bestKm) ? bestKm : 0 });
     if (pos) here = pos;
   }
   return ordered;
+}
+type Strategy = "nearest" | "spiral" | "clover" | "petal";
+function strategyOrder(items: Stop[], center: Position, strategy: Strategy) {
+  if(strategy==="nearest") return orderNearest(items,center);
+  const sector=(p:Stop,n:number)=>{const q=point(p);if(!q)return n;return Math.floor(((Math.atan2(q.latitude-center.latitude,q.longitude-center.longitude)*180/Math.PI+360)%360)/(360/n));};
+  const radius=(p:Stop)=>{const q=point(p);return q?km(center,q):Infinity;};
+  const sorted=[...items].sort((a,b)=>strategy==="spiral"?radius(a)-radius(b):sector(a,strategy==="clover"?4:8)-sector(b,strategy==="clover"?4:8)||radius(a)-radius(b));
+  let here=center;
+  return sorted.map(s=>{const q=point(s);const distance=q?km(here,q):0;if(q)here=q;return {...s,distance};});
 }
 export default function TourPlanner() {
   const [raw, setRaw] = useState<Prospect[]>([]),
@@ -153,6 +162,7 @@ export default function TourPlanner() {
     [position, setPosition] = useState<Position | undefined>(),
     [bookedProspects, setBookedProspects] = useState<string[]>([]),
     [busy, setBusy] = useState("");
+  const [strategy,setStrategy]=useState<Strategy>("nearest");
   const [savedPlanId, setSavedPlanId] = useState("");
   const [recommendation, setRecommendation] = useState("");
   const [online, setOnline] = useState(true);
@@ -294,7 +304,7 @@ export default function TourPlanner() {
           zone === "Automatique"
             ? `${p.zone || ""} ${p.address || ""}`
                 .toLowerCase()
-                .includes(selectedZone.toLowerCase()) || !point(p)
+                .includes(selectedZone.toLowerCase())
             : `${p.zone || ""} ${p.address || ""}`
                 .toLowerCase()
                 .includes(zone.toLowerCase()),
@@ -312,9 +322,10 @@ export default function TourPlanner() {
     [eligible, limit, selectedZone, zone],
   );
   const plan = useMemo(
-    () => orderNearest(candidates.slice(0, limit), center),
-    [candidates, limit, center.latitude, center.longitude],
+    () => strategyOrder(candidates.slice(0, limit), center,strategy),
+    [candidates, limit, center.latitude, center.longitude,strategy],
   );
+  useEffect(()=>{setSavedPlanId("");},[strategy,zone,limit,position,excluded,done]);
   const distance = plan.reduce((sum, s) => sum + s.distance, 0);
   function locate() {
     navigator.geolocation?.getCurrentPosition(
@@ -438,7 +449,7 @@ export default function TourPlanner() {
             <small>arrêts</small>
           </b>
           <b>
-            {distance.toFixed(1)} km<small>estimés</small>
+            {distance.toFixed(1)} km<small>à vol d’oiseau, indicatifs</small>
           </b>
           <b>
             {Math.round(
@@ -461,11 +472,12 @@ export default function TourPlanner() {
           Zone
           <select value={zone} onChange={(e) => setZone(e.target.value)}>
             <option>Automatique</option>
-            {Object.keys(zonePoints).map((z) => (
+            {Array.from(new Set([...Object.keys(zonePoints),...raw.map(p=>p.zone?.trim()).filter((z): z is string=>Boolean(z)),...(zone==="Automatique"?[]:[zone])])).sort().map((z) => (
               <option key={z}>{z}</option>
             ))}
           </select>
         </label>
+        <label>Stratégie<select value={strategy} onChange={e=>setStrategy(e.target.value as Strategy)}><option value="nearest">Proximité automatique</option><option value="spiral">Spirale · du centre vers l’extérieur</option><option value="clover">Trèfle · 4 secteurs</option><option value="petal">Marguerite · 8 secteurs</option></select></label>
         <label>
           Visites
           <select
@@ -515,7 +527,7 @@ export default function TourPlanner() {
                 <p>{s.address?.trim() || s.zone || "Adresse à vérifier"}</p>
                 <div className="stopchips">
                   <small>🚐 {s.fleet || "flotte à qualifier"}</small>
-                  <small>⌖ ~{s.distance.toFixed(1)} km</small>
+                  <small>⌖ {point(s) ? `~${s.distance.toFixed(1)} km` : "distance inconnue"}</small>
                   <small>{s.access || "accès à vérifier"}</small>
                   <small>
                     {s.verificationStatus || "à vérifier"} ·{" "}
@@ -527,7 +539,7 @@ export default function TourPlanner() {
                     <small>✓ sélection du jour</small>
                   )}
                 </div>
-                <div className="navlinks">
+                <div className="navlinks"><a href={"/prospection?prospect="+encodeURIComponent(s.id)}>Fiche prospect</a>
                   <a href={maps(s)} target="_blank" rel="noopener noreferrer">
                     Itinéraire
                   </a>
