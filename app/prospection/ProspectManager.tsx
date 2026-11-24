@@ -102,6 +102,14 @@ const money = (v: number) =>
     currency: "EUR",
     maximumFractionDigits: 0,
   }).format(v || 0);
+function maturity(p: Prospect) {
+  if (p.doNotContact) return "Opposition";
+  if (p.status === "Gagné") return "Partenaire";
+  if (p.status === "Perdu") return "Clôturé";
+  if (["RDV","Offre"].includes(p.status)) return "Chaud";
+  if (["Qualifié","Relance"].includes(p.status)) return "Tiède";
+  return "Froid";
+}
 export default function ProspectManager() {
   const params = useSearchParams();
   const documentInput = useRef<HTMLInputElement>(null);
@@ -175,17 +183,20 @@ export default function ProspectManager() {
       openRecord(p);
     }
   }, [ready, params, items]);
+  const [temperature,setTemperature] = useState("Tous");
   const requestedStatus = params.get("status");
   const filtered = useMemo(
     () =>
       items.filter(
         (x) =>
           (!requestedStatus || x.status === requestedStatus) &&
+          (temperature === "Tous" || maturity(x) === temperature) &&
+          (requestedStatus !== "Relance" || !x.doNotContact) &&
           (x.name + x.sector + x.zone + x.address)
             .toLowerCase()
             .includes(query.toLowerCase()),
       ),
-    [items, query, requestedStatus],
+    [items, query, requestedStatus, temperature],
   );
   function fresh(): Prospect {
     return {
@@ -501,6 +512,10 @@ export default function ProspectManager() {
           </a>
         </div>
       )}
+      <div className="workspacebar" style={{flexWrap:"wrap",gap:8}}>
+        {["Tous","Froid","Tiède","Chaud","Partenaire","Clôturé","Opposition"].map(t=><button key={t} type="button" className={temperature===t?"primary":"edit"} aria-pressed={temperature===t} onClick={()=>setTemperature(t)}>{t} · {items.filter(p=>(!requestedStatus||p.status===requestedStatus)&&(requestedStatus!=="Relance"||!p.doNotContact)&&(t==="Tous"||maturity(p)===t)).length}</button>)}
+      </div>
+      <p className="muted">Maturité indicative calculée selon le statut commercial. Une relance ne confirme pas à elle seule un besoin.</p>
       <div className="prospectcards">
         {filtered.map((p) => (
           <article
@@ -516,10 +531,10 @@ export default function ProspectManager() {
                   {p.sector} • {p.zone}
                 </p>
               </div>
-              <mark>{p.status}</mark>
+              <mark>{p.status} · {maturity(p)}</mark>
               <div className="prospectmeta">
                 <span>🚐 {p.fleet || "Flotte à qualifier"}</span>
-                <span>⚡ {p.next}</span>
+                <span>⚡ {p.doNotContact ? "Ne pas contacter" : p.next}</span>
                 <span>⌖ Accès {p.access || "à vérifier"}</span>
                 {p.potentialRevenue > 0 && (
                   <span>€ Pipeline pondéré {money(p.potentialRevenue)}</span>
