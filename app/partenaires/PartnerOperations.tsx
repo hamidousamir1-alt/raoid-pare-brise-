@@ -130,6 +130,18 @@ export default function PartnerOperations() {
     load();
   }, []);
 
+  const portfolio = useMemo(() => {
+    const ranked = [...(data?.partners || [])].sort((a,b) => Number(b.generatedRevenue || 0)-Number(a.generatedRevenue || 0));
+    const total = ranked.reduce((sum,p) => sum + Math.max(0,Number(p.generatedRevenue || 0)),0);
+    let cumulative = 0;
+    return ranked.map(p => {
+      const revenue = Math.max(0,Number(p.generatedRevenue || 0));
+      const share = total ? revenue / total * 100 : 0;
+      const category = !revenue ? "C" : cumulative < 80 ? "A" : cumulative < 95 ? "B" : "C";
+      cumulative += share;
+      return {...p, revenue, share, cumulative, category};
+    });
+  }, [data]);
   const partner = data?.partners.find((item) => item.id === partnerId);
   const vehicles = useMemo(
     () => data?.vehicles.filter((item) => item.prospectId === partnerId) || [],
@@ -293,6 +305,19 @@ export default function PartnerOperations() {
           <b>{money(data?.stats.revenue || 0)}</b>
         </article>
       </section>
+      {portfolio.length > 0 && (
+        <section className="opsPanel">
+          <p className="eyebrow">PORTEFEUILLE CLIENT · ABC</p>
+          <h2>Priorités commerciales</h2>
+          <p className="muted">CA généré enregistré, toutes périodes. A : jusqu’à environ 80 %, B : jusqu’à 95 %, C : reste. Le client franchissant le seuil reste dans la classe précédente.</p>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",textAlign:"left"}}>
+              <thead><tr><th>Partenaire</th><th>CA</th><th>Poids</th><th>Cumul</th><th>Classe</th></tr></thead>
+              <tbody>{portfolio.map(p => <tr key={p.id}><td><button onClick={() => {setPartnerId(p.id);setVehicleId("");}}>{p.name}</button></td><td>{money(p.revenue)}</td><td>{p.share.toFixed(1)} %</td><td>{p.cumulative.toFixed(1)} %</td><td>{p.category}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </section>
+      )}
       {partner ? (
         <>
           <section className="partnerSummary">
@@ -480,6 +505,11 @@ export default function PartnerOperations() {
                     </header>
                     {item.notes && <p>{item.notes}</p>}
                     <div className="caseActions">
+                      <button type="button" disabled={!!busy} onClick={() => {
+                        if (window.confirm("Supprimer ce dossier vitrage ? Les tâches liées seront clôturées et le CA sera ajusté si nécessaire. Une trace sera conservée.")) {
+                          void action({action:"case_delete",caseId:item.id},item.id);
+                        }
+                      }}>Supprimer</button>
                       {item.status === "new" && (
                         <button onClick={() => openCaseFlow(item, "scheduled")}>
                           Planifier

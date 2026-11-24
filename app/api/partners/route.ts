@@ -153,6 +153,23 @@ export async function POST(req: NextRequest) {
             { status: 404, headers: noStore },
           );
     }
+    if (x.action === "case_delete") {
+      const caseId = String(x.caseId || "");
+      if (!UUID.test(caseId)) return NextResponse.json({error:"invalid_id"},{status:400,headers:noStore});
+      const removed = await db().begin(async (sql) => {
+        const rows = await sql`select * from service_cases where id=${caseId} for update`;
+        if (!rows.length) return false;
+        const item = rows[0];
+        // Preserve a full audit snapshot before removing the erroneous case.
+        await sql`insert into prospect_events(prospect_id,event_type,payload) values(${item.prospect_id},'service_case_deleted',${sql.json({case: JSON.parse(JSON.stringify(item))})})`;
+        await sql`update sales_tasks set service_case_id=null,status=case when status='open' then 'dismissed' else status end,updated_at=now() where service_case_id=${caseId}`;
+        await sql`delete from service_cases where id=${caseId}`;
+        if (item.status === "completed") await sql`update prospects set generated_revenue=greatest(0,generated_revenue-${Number(item.amount)}),updated_at=now() where id=${item.prospect_id}`;
+        await sql`update partner_profiles set satisfaction=(select round(avg(satisfaction))::int from service_cases where prospect_id=${item.prospect_id}),updated_at=now() where prospect_id=${item.prospect_id}`;
+        return true;
+      });
+      return NextResponse.json(removed ? {ok:true} : {error:"not_found"},{status:removed ? 200 : 404,headers:noStore});
+    }
     if (x.action === "case_status") {
       const caseId = String(x.caseId || ""),
         status = String(x.status || ""),
