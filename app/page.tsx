@@ -12,6 +12,8 @@ type Prospect = {
   doNotContact?: boolean;
   lastFieldVisitAt?: string | null;
   updatedAt?: string;
+  nextActionAt?: string | null;
+  next?: string;
 };
 type DailyAction = {
   id: string;
@@ -96,18 +98,19 @@ export default function Home() {
     const active = prospects.filter(
         (p) => !["Gagné", "Perdu"].includes(p.status),
       ),
-      relance = prospects.filter((p) => p.status === "Relance"),
+      relance = prospects.filter((p) => p.status === "Relance" && !p.doNotContact),
       rdv = prospects.filter((p) => p.status === "RDV"),
       won = prospects.filter((p) => p.status === "Gagné").length,
       lost = prospects.filter((p) => p.status === "Perdu").length,
       decided = won + lost,
       conversion = decided ? Math.round((won / decided) * 100) : 0,
-      priority = [...active].sort((a, b) => b.score - a.score).slice(0, 4),
+      priority = active.filter(p=>!p.doNotContact).sort((a, b) => b.score - a.score).slice(0, 4),
       names = ["Nouveaux", "Qualifiés", "RDV", "Offres", "Gagnés"],
       pipeline = names.map(
         (n) =>
           [n, prospects.filter((p) => stage(p.status) === n).length] as const,
       );
+    const urgent = active.filter(p=>!p.doNotContact && p.nextActionAt && new Date(p.nextActionAt).getTime()<=Date.now()+86400000).sort((a,b)=>new Date(a.nextActionAt!).getTime()-new Date(b.nextActionAt!).getTime());
     const terrainCandidates = active.filter(
       (p) =>
         !p.doNotContact &&
@@ -145,6 +148,7 @@ export default function Home() {
       .slice(0, 3);
     return {
       active,
+      urgent,
       relance,
       rdv,
       conversion,
@@ -239,6 +243,10 @@ export default function Home() {
             </p>
           </article>
         </div>
+        <article className="panel">
+          <div className="panelhead"><div><p className="eyebrow">ÉCHÉANCES COMMERCIALES</p><h2>{data.urgent.length} action(s) à traiter sous 24 h</h2></div><a href="/actions">Centre d’actions →</a></div>
+          {data.urgent.length ? data.urgent.slice(0,5).map(p=><div key={p.id} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"12px 0",borderBottom:"1px solid #edf0f4"}}><div><b>{p.name}</b><p className="muted">{p.next||"Vérifier la prochaine action"} · {new Date(p.nextActionAt!).toLocaleString("fr-FR")}</p></div><a href={"/prospection?prospect="+encodeURIComponent(p.id)}>Ouvrir →</a></div>):<p className="muted">Aucune échéance commerciale dans les prochaines 24 h.</p>}
+        </article>
         <article className="homeMission">
           <div>
             <p className="eyebrow">MISSION TERRAIN DU JOUR</p>
@@ -258,7 +266,7 @@ export default function Home() {
               </div>
             )}
           </div>
-          <a className="startTour" href="/terrain">
+          <a className="startTour" href={data.terrainCount ? "/terrain?zone="+encodeURIComponent(data.terrainZone) : "/terrain"}>
             {data.terrainCount
               ? "Commencer la tournée →"
               : "Préparer la tournée →"}
@@ -320,7 +328,7 @@ export default function Home() {
             {data.priority.map((p) => (
               <div className="tr" key={p.id}>
                 <span>
-                  {p.score >= 85 ? "🔥" : "🟢"} <b>{p.name}</b>
+                  {p.score >= 85 ? "🔥" : "🟢"} <a href={"/prospection?prospect="+encodeURIComponent(p.id)}><b>{p.name}</b></a>
                 </span>
                 <span>{p.sector || "À renseigner"}</span>
                 <span>{p.zone || "À renseigner"}</span>

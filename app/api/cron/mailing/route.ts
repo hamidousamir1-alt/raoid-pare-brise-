@@ -46,10 +46,16 @@ export async function GET(req: NextRequest) {
     replies = 0,
     failed = 0;
   try {
+    await db().begin(async sql=>{
+      await sql`update email_enrollments e set status='cancelled',stop_reason='do_not_contact',next_send_at=null,updated_at=now() from prospects p where e.prospect_id=p.id and e.status in ('active','paused') and (p.do_not_contact or p.deleted_at is not null)`;
+      await sql`update email_messages m set status='cancelled',updated_at=now() from prospects p where m.prospect_id=p.id and m.direction='outbound' and m.status='scheduled' and (p.do_not_contact or p.deleted_at is not null)`;
+    });
     const due =
-      await db()`update email_messages set status='sending',updated_at=now() where id in(select m.id from email_messages m where m.status='scheduled' and m.scheduled_at<=now() and (m.enrollment_id is null or exists(select 1 from email_enrollments e where e.id=m.enrollment_id and e.status='active')) order by m.scheduled_at limit 20 for update skip locked) returning id,prospect_id as "prospectId",enrollment_id as "enrollmentId",recipient_email as recipient,subject,body_html as html`;
+      await db()`update email_messages set status='sending',updated_at=now() where id in(select m.id from email_messages m where m.status='scheduled' and m.scheduled_at<=now() and exists(select 1 from prospects p where p.id=m.prospect_id and p.do_not_contact=false and p.deleted_at is null) and (m.enrollment_id is null or exists(select 1 from email_enrollments e where e.id=m.enrollment_id and e.status='active')) order by m.scheduled_at limit 20 for update skip locked) returning id,prospect_id as "prospectId",enrollment_id as "enrollmentId",recipient_email as recipient,subject,body_html as html`;
     for (const m of due) {
       try {
+        const allowed = await db()`select id from prospects where id=${m.prospectId} and do_not_contact=false and deleted_at is null`;
+        if (!allowed.length) { await db()`update email_messages set status='cancelled',updated_at=now() where id=${m.id} and status='sending'`; continue; }
         const logo = `${process.env.CRM_PUBLIC_URL!.replace(/\/$/, "")}/rapid-logo.png`,
           html = String(m.html).replaceAll("{{logo_url}}", logo);
         await sendMicrosoftMail({ to: m.recipient, subject: m.subject, html });

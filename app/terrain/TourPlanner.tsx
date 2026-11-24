@@ -160,6 +160,8 @@ export default function TourPlanner() {
   const [visitReport, setVisitReport] = useState<VisitReport | null>(null);
   useEffect(() => {
     let live = true;
+    const requestedZone = new URLSearchParams(window.location.search).get("zone");
+    if(requestedZone) setZone(requestedZone);
     (async () => {
       try {
         const r = await fetch("/api/prospects", { cache: "no-store" });
