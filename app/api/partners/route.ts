@@ -36,14 +36,15 @@ export async function GET() {
   const denied = await guard();
   if (denied) return denied;
   try {
-    const [partners, vehicles, cases, stats] = await Promise.all([
+    const [partners, vehicles, cases, stats, archived] = await Promise.all([
       db()`select p.id,p.name,p.sector,p.phone,p.email,p.contact_name as "contactName",p.fleet_count as "fleetCount",p.signed_revenue as "signedRevenue",p.generated_revenue as "generatedRevenue",p.next_action as "nextAction",pp.onboarding_status as "onboardingStatus",pp.agreement_started_at as "agreementStartedAt",pp.next_review_at as "nextReviewAt",pp.satisfaction,pp.operational_notes as "operationalNotes" from prospects p left join partner_profiles pp on pp.prospect_id=p.id where p.deleted_at is null and p.status='Gagné' order by p.name`,
       db()`select id,prospect_id as "prospectId",registration,make,model,vehicle_year as "vehicleYear",driver_name as "driverName",notes,active from fleet_vehicles where active=true order by registration`,
       db()`select s.id,s.prospect_id as "prospectId",p.name as prospect,s.vehicle_id as "vehicleId",v.registration,s.request_type as "requestType",s.status,s.requested_at as "requestedAt",s.scheduled_at as "scheduledAt",s.completed_at as "completedAt",s.insurer,s.claim_number as "claimNumber",s.amount,s.notes,s.satisfaction from service_cases s join prospects p on p.id=s.prospect_id left join fleet_vehicles v on v.id=s.vehicle_id order by s.requested_at desc limit 100`,
       db()`select count(*) filter(where status in ('new','scheduled','in_progress'))::int as active,count(*) filter(where status='completed' and completed_at>=date_trunc('month',now()))::int as "completedThisMonth",coalesce(sum(amount) filter(where status='completed'),0)::float8 as revenue,coalesce(avg(satisfaction),0)::float8 as satisfaction from service_cases`,
+      db()`select e.id as "eventId",e.prospect_id as "prospectId",e.created_at as "deletedAt",e.payload->'case'->>'id' as "caseId",e.payload->'case'->>'request_type' as "requestType",e.payload->'case'->>'amount' as amount from prospect_events e join prospects p on p.id=e.prospect_id where e.event_type='service_case_deleted' and p.deleted_at is null and p.status='Gagné' and not exists(select 1 from prospect_events r where r.event_type='service_case_restored' and r.payload->>'deletionEventId'=e.id::text) and not exists(select 1 from service_cases s where s.id::text=e.payload->'case'->>'id') order by e.created_at desc`,
     ]);
     return NextResponse.json(
-      { partners, vehicles, cases, stats: stats[0] },
+      { partners, vehicles, cases, stats: stats[0], archived },
       { headers: noStore },
     );
   } catch {
@@ -169,6 +170,26 @@ export async function POST(req: NextRequest) {
         return true;
       });
       return NextResponse.json(removed ? {ok:true} : {error:"not_found"},{status:removed ? 200 : 404,headers:noStore});
+    }
+    if (x.action === "case_restore") {
+      const eventId=String(x.eventId||"");
+      if(!UUID.test(eventId)) return NextResponse.json({error:"invalid_id"},{status:400,headers:noStore});
+      const restored=await db().begin(async sql=>{
+        const events=await sql`select e.prospect_id,e.payload from prospect_events e join prospects p on p.id=e.prospect_id where e.id=${eventId} and e.event_type='service_case_deleted' and p.deleted_at is null and p.status='Gagné' for update of e`;
+        if(!events.length)return false;
+        const prior=await sql`select id from prospect_events where event_type='service_case_restored' and payload->>'deletionEventId'=${eventId}`;
+        if(prior.length)return false;
+        const item=events[0].payload.case;
+        if(!item||!UUID.test(String(item.id))||item.prospect_id!==events[0].prospect_id)return false;
+        const rows=await sql`insert into service_cases(id,prospect_id,vehicle_id,request_type,status,requested_at,scheduled_at,completed_at,insurer,claim_number,amount,notes,satisfaction,created_at,updated_at) select id,prospect_id,(select v.id from fleet_vehicles v where v.id=c.vehicle_id and v.prospect_id=c.prospect_id),request_type,status,requested_at,scheduled_at,completed_at,insurer,claim_number,amount,notes,satisfaction,created_at,now() from jsonb_populate_record(null::service_cases,${sql.json(item)}::jsonb) c on conflict(id) do nothing returning id`;
+        if(!rows.length)return false;
+        if(item.status==="completed") await sql`update prospects set generated_revenue=generated_revenue+${Number(item.amount)},updated_at=now() where id=${item.prospect_id}`;
+        if(["new","scheduled","in_progress"].includes(item.status)) await sql`insert into sales_tasks(prospect_id,service_case_id,task_type,title,priority,due_at,source) values(${item.prospect_id},${item.id},'service_case','Reprendre le dossier vitrage restauré',95,now(),'partner') on conflict(service_case_id,task_type) where service_case_id is not null do nothing`;
+        await sql`update partner_profiles set satisfaction=(select round(avg(satisfaction))::int from service_cases where prospect_id=${item.prospect_id}),updated_at=now() where prospect_id=${item.prospect_id}`;
+        await sql`insert into prospect_events(prospect_id,event_type,payload) values(${item.prospect_id},'service_case_restored',${sql.json({deletionEventId:eventId,serviceCaseId:item.id})})`;
+        return true;
+      });
+      return NextResponse.json(restored?{ok:true}:{error:"not_found_or_restored"},{status:restored?200:409,headers:noStore});
     }
     if (x.action === "case_status") {
       const caseId = String(x.caseId || ""),

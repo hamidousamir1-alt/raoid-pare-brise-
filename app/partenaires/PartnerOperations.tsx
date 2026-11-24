@@ -43,6 +43,7 @@ type Data = {
   partners: Partner[];
   vehicles: Vehicle[];
   cases: ServiceCase[];
+  archived?: {eventId:string;prospectId:string;deletedAt:string;requestType:string;amount:number}[];
   stats: {
     active: number;
     completedThisMonth: number;
@@ -578,6 +579,7 @@ export default function PartnerOperations() {
           </section>
         )
       )}
+      {partner && <section className="opsPanel"><details><summary style={{cursor:"pointer",fontWeight:700}}>Dossiers supprimés · {(data?.archived||[]).filter(x=>x.prospectId===partnerId).length}</summary>{(data?.archived||[]).filter(x=>x.prospectId===partnerId).map(x=><div key={x.eventId} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,padding:"12px 0",borderBottom:"1px solid #edf0f4"}}><div><b>{requestLabels[x.requestType]||x.requestType} · {money(Number(x.amount))}</b><p className="muted">Supprimé le {new Date(x.deletedAt).toLocaleString("fr-FR")}</p></div><button type="button" disabled={!!busy} onClick={()=>{if(window.confirm("Restaurer ce dossier et son impact sur le CA ?"))void action({action:"case_restore",eventId:x.eventId},x.eventId)}}>Restaurer</button></div>)}</details></section>}
       {caseFlow && (
         <div className="modalback" onMouseDown={() => setCaseFlow(null)}>
           <form className="modal caseFlowForm" onSubmit={submitCaseFlow} onMouseDown={(event) => event.stopPropagation()}>
